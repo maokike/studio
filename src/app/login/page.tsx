@@ -22,45 +22,45 @@ export default function LoginPage() {
     event.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // **Aquí es donde llamamos a tu API Route que se conecta a Somee**
+      const response = await fetch('/api/auth/somee-login', { // La URL de tu API Route
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }), // Envía el email y la contraseña
+      });
 
-    // TODO: Implement actual authentication logic
-    // For now, assume login is successful and redirect to dashboard
-    // Role-based redirection would happen here
-    if (email === "admin@example.com" && password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Admin!",
-      });
-      router.push('/dashboard');
-    } else if (email === "doctor@example.com" && password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Doctor!",
-      });
-      router.push('/dashboard'); // Or doctor-specific dashboard
-    } else if (email === "patient@example.com" && password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Patient!",
-      });
-      router.push('/dashboard'); // Or patient-specific dashboard
-    } else if (email && password) {
-       toast({
-        title: "Login Successful (Generic)",
-        description: "Redirecting to dashboard...",
-      });
-      router.push('/dashboard');
-    }
-     else {
+      const data = await response.json(); // Parsea la respuesta JSON de tu API Route
+
+      if (response.ok && data.success) { // Si la respuesta HTTP es 200 y data.success es true
+        toast({
+          title: "Inicio de Sesión Exitoso",
+          description: data.message || "¡Bienvenido de nuevo!",
+        });
+        // TODO: Si tu API devuelve un token de sesión/JWT, deberías almacenarlo aquí
+        // Por ejemplo: localStorage.setItem('authToken', data.token);
+        router.push('/dashboard'); // Redirige al dashboard
+      } else {
+        // Si el login falla (respuesta no ok o success: false)
+        toast({
+          variant: "destructive",
+          title: "Inicio de Sesión Fallido",
+          description: data.message || "Correo o contraseña inválidos. Inténtalo de nuevo.",
+        });
+      }
+    } catch (error) {
+      // Captura cualquier error de red o del servidor
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: "Invalid email or password. Please try again.",
+        title: "Error de Conexión",
+        description: "Ocurrió un error inesperado al intentar iniciar sesión. Inténtalo de nuevo más tarde.",
       });
+      console.error("Error al iniciar sesión:", error);
+    } finally {
+      setIsLoading(false); // Desactiva el estado de carga
     }
-    setIsLoading(false);
   };
 
   return (
@@ -72,17 +72,17 @@ export default function LoginPage() {
             <AppLogoText />
           </div>
           <CardTitle className="text-2xl font-headline">Login</CardTitle>
-          <CardDescription>Enter your credentials to access your account</CardDescription>
+          <CardDescription>Ingresa tus credenciales para acceder a tu cuenta</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="m@example.com" 
-                required 
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
@@ -91,21 +91,21 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Button 
-                  variant="link" 
-                  type="button" 
+                <Button
+                  variant="link"
+                  type="button"
                   className="p-0 h-auto text-sm text-primary hover:underline"
-                  onClick={() => alert("Forgot password functionality to be implemented.")}
+                  onClick={() => alert("Funcionalidad de 'Olvidé mi contraseña' por implementar.")}
                   disabled={isLoading}
                 >
                   Forgot password?
                 </Button>
               </div>
               <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  required 
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
@@ -120,25 +120,25 @@ export default function LoginPage() {
                   disabled={isLoading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                  <span className="sr-only">{showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}</span>
                 </Button>
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login"}
+              {isLoading ? "Iniciando sesión..." : "Login"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="text-center text-sm">
           <p>
-            Don't have an account?{' '}
-            <Button 
-              variant="link" 
-              className="p-0 h-auto text-primary hover:underline" 
-              onClick={() => alert("Sign up functionality to be implemented.")}
+            ¿No tienes una cuenta?{' '}
+            <Button
+              variant="link"
+              className="p-0 h-auto text-primary hover:underline"
+              onClick={() => alert("Funcionalidad de 'Registrarse' por implementar.")}
               disabled={isLoading}
             >
-              Sign up
+              Regístrate
             </Button>
           </p>
         </CardFooter>
