@@ -37,7 +37,7 @@ export default function LoginPage() {
       if (response.ok && data.success) {
         toast({
           title: "Login Successful",
-          description: data.message || "Welcome!",
+          description: data.message || "Welcome!!",
         });
         // TODO: Handle session/token storage if provided by the API
         router.push('/dashboard');
