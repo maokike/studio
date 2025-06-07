@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { AppLogoText, Logo } from '@/components/icons';
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link'; // <--- ¡Asegúrate de que esta línea esté presente!
+import Link from 'next/link'; // Importa Link para el enlace de "Regístrate"
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      // Llamada a tu API Route para el login que se conecta a Somee
       const response = await fetch('/api/auth/somee-login', {
         method: 'POST',
         headers: {
@@ -40,7 +41,8 @@ export default function LoginPage() {
           title: "Inicio de Sesión Exitoso",
           description: data.message || "¡Bienvenido de nuevo!",
         });
-        router.push('/dashboard');
+        // TODO: Si tu API devuelve un token de sesión/JWT, deberías almacenarlo aquí
+        router.push('/dashboard'); // Redirige al dashboard
       } else {
         toast({
           variant: "destructive",
@@ -129,6 +131,7 @@ export default function LoginPage() {
         <CardFooter className="text-center text-sm">
           <p>
             ¿No tienes una cuenta?{' '}
+            {/* Aquí está el Link que te lleva a la página de registro */}
             <Link href="/register" passHref>
               <Button
                 variant="link"
