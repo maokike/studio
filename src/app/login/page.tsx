@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent } from 'react';
@@ -22,45 +23,41 @@ export default function LoginPage() {
     event.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch('/api/auth/somee-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // TODO: Implement actual authentication logic
-    // For now, assume login is successful and redirect to dashboard
-    // Role-based redirection would happen here
-    if (email === "admin@example.com" && password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Admin!",
-      });
-      router.push('/dashboard');
-    } else if (email === "doctor@example.com" && password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Doctor!",
-      });
-      router.push('/dashboard'); // Or doctor-specific dashboard
-    } else if (email === "patient@example.com" && password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Patient!",
-      });
-      router.push('/dashboard'); // Or patient-specific dashboard
-    } else if (email && password) {
-       toast({
-        title: "Login Successful (Generic)",
-        description: "Redirecting to dashboard...",
-      });
-      router.push('/dashboard');
-    }
-     else {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast({
+          title: "Login Successful",
+          description: data.message || "Welcome!",
+        });
+        // TODO: Handle session/token storage if provided by the API
+        router.push('/dashboard');
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: data.message || "Invalid email or password. Please try again.",
+        });
+      }
+    } catch (error) {
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: "Invalid email or password. Please try again.",
+        title: "Login Error",
+        description: "An unexpected error occurred. Please try again later.",
       });
+      console.error("Login error:", error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -78,11 +75,11 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="m@example.com" 
-                required 
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
@@ -91,9 +88,9 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Button 
-                  variant="link" 
-                  type="button" 
+                <Button
+                  variant="link"
+                  type="button"
                   className="p-0 h-auto text-sm text-primary hover:underline"
                   onClick={() => alert("Forgot password functionality to be implemented.")}
                   disabled={isLoading}
@@ -102,10 +99,10 @@ export default function LoginPage() {
                 </Button>
               </div>
               <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  required 
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
@@ -132,9 +129,9 @@ export default function LoginPage() {
         <CardFooter className="text-center text-sm">
           <p>
             Don't have an account?{' '}
-            <Button 
-              variant="link" 
-              className="p-0 h-auto text-primary hover:underline" 
+            <Button
+              variant="link"
+              className="p-0 h-auto text-primary hover:underline"
               onClick={() => alert("Sign up functionality to be implemented.")}
               disabled={isLoading}
             >
