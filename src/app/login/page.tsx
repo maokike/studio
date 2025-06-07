@@ -1,4 +1,4 @@
-
+// studio/src/app/login/page.tsx
 "use client";
 
 import { useState, type FormEvent } from 'react';
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { AppLogoText, Logo } from '@/components/icons';
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from 'lucide-react';
+import Link from 'next/link'; // <--- ¡Asegúrate de que esta línea esté presente!
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,27 +25,23 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // **Aquí es donde llamamos a tu API Route que se conecta a Somee**
-      const response = await fetch('/api/auth/somee-login', { // La URL de tu API Route
+      const response = await fetch('/api/auth/somee-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }), // Envía el email y la contraseña
+        body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json(); // Parsea la respuesta JSON de tu API Route
+      const data = await response.json();
 
-      if (response.ok && data.success) { // Si la respuesta HTTP es 200 y data.success es true
+      if (response.ok && data.success) {
         toast({
           title: "Inicio de Sesión Exitoso",
           description: data.message || "¡Bienvenido de nuevo!",
         });
-        // TODO: Si tu API devuelve un token de sesión/JWT, deberías almacenarlo aquí
-        // Por ejemplo: localStorage.setItem('authToken', data.token);
-        router.push('/dashboard'); // Redirige al dashboard
+        router.push('/dashboard');
       } else {
-        // Si el login falla (respuesta no ok o success: false)
         toast({
           variant: "destructive",
           title: "Inicio de Sesión Fallido",
@@ -52,7 +49,6 @@ export default function LoginPage() {
         });
       }
     } catch (error) {
-      // Captura cualquier error de red o del servidor
       toast({
         variant: "destructive",
         title: "Error de Conexión",
@@ -60,7 +56,7 @@ export default function LoginPage() {
       });
       console.error("Error al iniciar sesión:", error);
     } finally {
-      setIsLoading(false); // Desactiva el estado de carga
+      setIsLoading(false);
     }
   };
 
@@ -133,14 +129,15 @@ export default function LoginPage() {
         <CardFooter className="text-center text-sm">
           <p>
             ¿No tienes una cuenta?{' '}
-            <Button
-              variant="link"
-              className="p-0 h-auto text-primary hover:underline"
-              onClick={() => alert("Funcionalidad de 'Registrarse' por implementar.")}
-              disabled={isLoading}
-            >
-              Regístrate
-            </Button>
+            <Link href="/register" passHref>
+              <Button
+                variant="link"
+                className="p-0 h-auto text-primary hover:underline"
+                disabled={isLoading}
+              >
+                Regístrate
+              </Button>
+            </Link>
           </p>
         </CardFooter>
       </Card>
