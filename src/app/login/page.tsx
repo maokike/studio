@@ -24,11 +24,17 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+<<<<<<< HEAD
       const response = await fetch('/api/auth/somee-login', {
+=======
+      // **Aquí es donde llamamos a tu API Route que se conecta a Somee**
+      const response = await fetch('/api/auth/somee-login', { // La URL de tu API Route
+>>>>>>> feature/login-somee
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+<<<<<<< HEAD
         body: JSON.stringify({ email, password }),
       });
 
@@ -57,6 +63,39 @@ export default function LoginPage() {
       console.error("Login error:", error);
     } finally {
       setIsLoading(false);
+=======
+        body: JSON.stringify({ email, password }), // Envía el email y la contraseña
+      });
+
+      const data = await response.json(); // Parsea la respuesta JSON de tu API Route
+
+      if (response.ok && data.success) { // Si la respuesta HTTP es 200 y data.success es true
+        toast({
+          title: "Inicio de Sesión Exitoso",
+          description: data.message || "¡Bienvenido de nuevo!",
+        });
+        // TODO: Si tu API devuelve un token de sesión/JWT, deberías almacenarlo aquí
+        // Por ejemplo: localStorage.setItem('authToken', data.token);
+        router.push('/dashboard'); // Redirige al dashboard
+      } else {
+        // Si el login falla (respuesta no ok o success: false)
+        toast({
+          variant: "destructive",
+          title: "Inicio de Sesión Fallido",
+          description: data.message || "Correo o contraseña inválidos. Inténtalo de nuevo.",
+        });
+      }
+    } catch (error) {
+      // Captura cualquier error de red o del servidor
+      toast({
+        variant: "destructive",
+        title: "Error de Conexión",
+        description: "Ocurrió un error inesperado al intentar iniciar sesión. Inténtalo de nuevo más tarde.",
+      });
+      console.error("Error al iniciar sesión:", error);
+    } finally {
+      setIsLoading(false); // Desactiva el estado de carga
+>>>>>>> feature/login-somee
     }
   };
 
@@ -69,7 +108,7 @@ export default function LoginPage() {
             <AppLogoText />
           </div>
           <CardTitle className="text-2xl font-headline">Login</CardTitle>
-          <CardDescription>Enter your credentials to access your account</CardDescription>
+          <CardDescription>Ingresa tus credenciales para acceder a tu cuenta</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -92,7 +131,7 @@ export default function LoginPage() {
                   variant="link"
                   type="button"
                   className="p-0 h-auto text-sm text-primary hover:underline"
-                  onClick={() => alert("Forgot password functionality to be implemented.")}
+                  onClick={() => alert("Funcionalidad de 'Olvidé mi contraseña' por implementar.")}
                   disabled={isLoading}
                 >
                   Forgot password?
@@ -117,25 +156,33 @@ export default function LoginPage() {
                   disabled={isLoading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                  <span className="sr-only">{showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}</span>
                 </Button>
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login"}
+              {isLoading ? "Iniciando sesión..." : "Login"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="text-center text-sm">
           <p>
+<<<<<<< HEAD
             Don't have an account?{' '}
             <Button
               variant="link"
               className="p-0 h-auto text-primary hover:underline"
               onClick={() => alert("Sign up functionality to be implemented.")}
+=======
+            ¿No tienes una cuenta?{' '}
+            <Button
+              variant="link"
+              className="p-0 h-auto text-primary hover:underline"
+              onClick={() => alert("Funcionalidad de 'Registrarse' por implementar.")}
+>>>>>>> feature/login-somee
               disabled={isLoading}
             >
-              Sign up
+              Regístrate
             </Button>
           </p>
         </CardFooter>
