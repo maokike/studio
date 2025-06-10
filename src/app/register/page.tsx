@@ -1,7 +1,7 @@
 // studio/src/app/register/page.tsx
 "use client";
 
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,20 @@ import { Label } from "@/components/ui/label";
 import { AppLogoText, Logo } from '@/components/icons';
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link'; // Importa Link para el enlace de "Ya tienes cuenta"
+import Link from 'next/link';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+
+interface Specialty {
+  Id: number;
+  Nombre: string;
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -21,9 +34,76 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // Si quieres que el rol inicial sea "Medico" (sin tilde), puedes cambiarlo aquí también.
+  const [selectedRole, setSelectedRole] = useState('Paciente');
+  const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<number | null>(null);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingSpecialties, setIsFetchingSpecialties] = useState(false);
+
+  useEffect(() => {
+    // Si el rol es Paciente, la especialidad no es necesaria, así que se anula.
+    if (selectedRole === 'Paciente') {
+      setSelectedSpecialtyId(null);
+      return;
+    }
+
+    // Si el rol es Médico y aún no se han cargado las especialidades
+    // (o la lista está vacía y no estamos ya en proceso de carga)
+    // Asegúrate de que el selectedRole aquí también coincida con "Medico" si lo estás usando.
+    // O mejor, usa una comparación que ignore mayúsculas/minúsculas y tildes si es posible,
+    // pero para este useEffect, la coincidencia literal "Medico" es lo más seguro.
+    if (selectedRole === 'Medico' && !isFetchingSpecialties && specialties.length === 0) { // <--- Asegúrate que aquí también uses 'Medico' sin tilde
+      const fetchSpecialties = async () => {
+        setIsFetchingSpecialties(true);
+        try {
+          const response = await fetch('/api/Especialidad', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const data = await response.json().catch(() => null);
+
+          if (response.ok && Array.isArray(data)) {
+            console.log('Datos desde la API de especialidades:', data);
+            setSpecialties(data);
+
+            if (data.length > 0) {
+              if (selectedSpecialtyId === null || !data.some(s => s.Id === selectedSpecialtyId)) {
+                setSelectedSpecialtyId(data[0].Id);
+              }
+            } else {
+              setSelectedSpecialtyId(null);
+            }
+          } else {
+            const errorMessage = data?.message || "No se pudieron cargar las especialidades. Verifique la conexión con el backend.";
+            toast({
+              variant: "destructive",
+              title: "Error de carga",
+              description: errorMessage,
+            });
+            setSelectedSpecialtyId(null);
+          }
+        } catch (error) {
+          console.error("Error al cargar especialidades:", error);
+          toast({
+            variant: "destructive",
+            title: "Error de Conexión",
+            description: "Ocurrió un error inesperado al cargar especialidades. Verifique si el backend está activo.",
+          });
+          setSelectedSpecialtyId(null);
+        } finally {
+          setIsFetchingSpecialties(false);
+        }
+      };
+      fetchSpecialties();
+    }
+  }, [selectedRole, isFetchingSpecialties, selectedSpecialtyId, specialties.length, toast]);
+
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -39,44 +119,65 @@ export default function RegisterPage() {
       return;
     }
 
+    // Asegúrate de que selectedRole aquí también sea "Medico" (sin tilde)
+    if (selectedRole === 'Medico' && selectedSpecialtyId === null) { // <--- Aquí también usa 'Medico' sin tilde
+      toast({
+        variant: "destructive",
+        title: "Error de registro",
+        description: "Por favor, selecciona una especialidad para el rol de Médico.",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    console.log("Intentando enviar datos de registro:", {
+      cedula, nombre, apellido, email, password, rol: selectedRole, especialidadId: selectedRole === 'Medico' ? selectedSpecialtyId : null, // <--- Aquí también usa 'Medico' sin tilde
+    });
+
     try {
-      // Llama a tu API Route para el registro
-      const response = await fetch('/api/auth/register', { // ¡Esta es la ruta API que creamos!
+      const response = await fetch('/api/Usuario', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cedula,
-          nombre,
-          apellido,
-          email,
-          password, // Recuerda: ¡Hashing en el backend es CRÍTICO!
+          Id: 0,
+          Cedula: parseInt(cedula),
+          Nombre: nombre.trim(),
+          Apellido: apellido.trim(),
+          Email: email,
+          Contrasena: password,
+          Rol: selectedRole, // Este valor vendrá directamente del SelectItem
+          EspecialidadId: selectedRole === 'Medico' ? selectedSpecialtyId : null, // <--- Aquí también usa 'Medico' sin tilde
+          Estatus: true,
+          FechaRegistro: new Date().toISOString()
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ message: "Respuesta no JSON del servidor." }));
 
-      if (response.ok && data.success) {
+      if (response.ok && data.success) { // Asegúrate de que tu backend devuelve { success: true, ... }
         toast({
           title: "Registro Exitoso",
           description: data.message || "¡Tu cuenta ha sido creada con éxito! Ahora puedes iniciar sesión.",
         });
-        router.push('/login'); // Redirige al login después de un registro exitoso
+        router.push('/login');
       } else {
+        const errorMessage = data.message || "Ocurrió un error al registrar la cuenta. Inténtalo de nuevo.";
         toast({
           variant: "destructive",
           title: "Registro Fallido",
-          description: data.message || "Ocurrió un error al registrar la cuenta. Inténtalo de nuevo.",
+          description: errorMessage,
         });
+        console.error("Error del backend al registrar:", data);
       }
     } catch (error) {
+      console.error("Error de conexión al registrar:", error);
       toast({
         variant: "destructive",
         title: "Error de Conexión",
         description: "Ocurrió un error inesperado. Por favor, intenta de nuevo más tarde.",
       });
-      console.error("Error de registro:", error);
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +195,7 @@ export default function RegisterPage() {
           <CardDescription>Crea tu cuenta para acceder al sistema</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4"> {/* Reducido el espacio para más campos */}
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="cedula">Cédula</Label>
               <Input
@@ -143,6 +244,46 @@ export default function RegisterPage() {
                 disabled={isLoading}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="role">Rol</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole} disabled={isLoading}>
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Selecciona un rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Paciente">Paciente</SelectItem>
+                  {/* ***** CAMBIO CRÍTICO AQUÍ: value="Medico" (sin tilde y con M mayúscula) ***** */}
+                  <SelectItem value="Medico">Médico</SelectItem> 
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedRole === 'Medico' && ( // <--- Aquí también usa 'Medico' sin tilde
+              <React.Fragment key="medical-specialty-field">
+                <div className="space-y-2">
+                  <Label htmlFor="specialty">Especialidad</Label>
+                  <select
+                    id="specialty"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={selectedSpecialtyId !== null ? selectedSpecialtyId.toString() : ""}
+                    onChange={(e) => setSelectedSpecialtyId(e.target.value === "" ? null : parseInt(e.target.value))}
+                    disabled={isLoading || isFetchingSpecialties || specialties.length === 0}
+                  >
+                    <option value="" disabled>
+                      {isFetchingSpecialties ? "Cargando especialidades..." : (specialties.length > 0 ? "Selecciona una especialidad" : "No hay especialidades disponibles")}
+                    </option>
+                    {specialties.length > 0 &&
+                      specialties.map((specialty) => (
+                        <option key={specialty.Id} value={specialty.Id.toString()}>
+                          {specialty.Nombre}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </React.Fragment>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
               <div className="relative">
@@ -152,8 +293,8 @@ export default function RegisterPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
                   placeholder="••••••••"
+                  disabled={isLoading}
                 />
                 <Button
                   type="button"
@@ -177,8 +318,8 @@ export default function RegisterPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
                   placeholder="••••••••"
+                  disabled={isLoading}
                 />
                 <Button
                   type="button"
