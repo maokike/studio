@@ -1,22 +1,30 @@
 // studio/src/app/login/page.tsx
 "use client";
 
-import { useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AppLogoText, Logo } from '@/components/icons';
+import { AppLogoText, Logo } from "@/components/icons";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link'; // Importa Link para el enlace de "Regístrate"
+import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link"; // Importa Link para el enlace de "Regístrate"
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,10 +34,10 @@ export default function LoginPage() {
 
     try {
       // Llamada a tu API Route para el login que se conecta a Somee
-      const response = await fetch('/api/auth/somee-login', {
-        method: 'POST',
+      const response = await fetch("/api/auth/somee-login", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
@@ -42,19 +50,22 @@ export default function LoginPage() {
           description: data.message || "¡Bienvenido de nuevo!",
         });
         // TODO: Si tu API devuelve un token de sesión/JWT, deberías almacenarlo aquí
-        router.push('/dashboard'); // Redirige al dashboard
+        router.push("/dashboard"); // Redirige al dashboard
       } else {
         toast({
           variant: "destructive",
           title: "Inicio de Sesión Fallido",
-          description: data.message || "Correo o contraseña inválidos. Inténtalo de nuevo.",
+          description:
+            data.message ||
+            "Correo o contraseña inválidos. Inténtalo de nuevo.",
         });
       }
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error de Conexión",
-        description: "Ocurrió un error inesperado al intentar iniciar sesión. Inténtalo de nuevo más tarde.",
+        description:
+          "Ocurrió un error inesperado al intentar iniciar sesión. Inténtalo de nuevo más tarde.",
       });
       console.error("Error al iniciar sesión:", error);
     } finally {
@@ -71,7 +82,9 @@ export default function LoginPage() {
             <AppLogoText />
           </div>
           <CardTitle className="text-2xl font-headline">Login</CardTitle>
-          <CardDescription>Ingresa tus credenciales para acceder a tu cuenta</CardDescription>
+          <CardDescription>
+            Ingresa tus credenciales para acceder a tu cuenta
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -90,15 +103,16 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Button
-                  variant="link"
-                  type="button"
-                  className="p-0 h-auto text-sm text-primary hover:underline"
-                  onClick={() => alert("Funcionalidad de 'Olvidé mi contraseña' por implementar.")}
-                  disabled={isLoading}
-                >
-                  Forgot password?
-                </Button>
+                <Link href="/forgot-password" passHref>
+                  <Button
+                    variant="link"
+                    type="button"
+                    className="p-0 h-auto text-sm text-primary hover:underline"
+                    disabled={isLoading}
+                  >
+                    Forgot password?
+                  </Button>
+                </Link>
               </div>
               <div className="relative">
                 <Input
@@ -118,8 +132,14 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  <span className="sr-only">{showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}</span>
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">
+                    {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  </span>
                 </Button>
               </div>
             </div>
@@ -130,7 +150,7 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="text-center text-sm">
           <p>
-            ¿No tienes una cuenta?{' '}
+            ¿No tienes una cuenta?{" "}
             {/* Aquí está el Link que te lleva a la página de registro */}
             <Link href="/register" passHref>
               <Button
