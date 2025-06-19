@@ -1,6 +1,7 @@
+// studio/src/app/doctors/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,9 +20,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, History } from "lucide-react";
-import { DoctorForm } from "./doctor-form";
+import { Badge } from "@/components/ui/badge";
+import {
+  MoreHorizontal,
+  PlusCircle,
+  Edit,
+  Trash2,
+  Loader2,
+} from "lucide-react"; 
+import { DoctorForm } from "./doctor-form"; // <--- Importa DoctorForm
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,62 +40,124 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Specialty } from "../specialties/page"; // Import Specialty type
 
+// Definimos la interfaz Doctor basada en tu interfaz User, pero específica para médicos
+// Coincide con las propiedades PascalCase de tu API de C# para Usuario
 export interface Doctor {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  specialtyId: string;
-  specialtyName?: string; // Denormalized for display
-  avatarUrl?: string;
-  registeredAt: string;
+  Id: number;
+  Cedula: number;
+  Nombre: string;
+  Apellido: string;
+  Email: string;
+  Contrasena?: string;
+  Rol: "Medico"; // El rol será siempre "Medico"
+  EspecialidadId?: number | null; // Requerido para Medico, puede ser null si no hay especialidad
+  Estatus: boolean;
+  FechaRegistro: string;
+  // Puedes añadir más propiedades específicas del médico aquí si tu API las devuelve
+  SpecialtyName?: string; // Para mostrar el nombre de la especialidad
 }
 
-// MOCK DATA - In a real app, specialties would be fetched
-const MOCK_SPECIALTIES: Pick<Specialty, 'id' | 'name'>[] = [
-  { id: "spec_1", name: "Cardiology" },
-  { id: "spec_2", name: "Pediatrics" },
-  { id: "spec_3", name: "Neurology" },
-  { id: "spec_4", name: "Orthopedics" },
-];
+// Interfaz para los datos del formulario de médico
+export interface DoctorFormData {
+  Id?: number;
+  Cedula?: number;
+  Nombre: string;
+  Apellido: string;
+  Email: string;
+  Contrasena?: string;
+  Rol: "Medico"; // En el formulario, siempre será "Medico"
+  EspecialidadId?: number | null;
+  Estatus?: boolean;
+}
 
-const MOCK_DOCTORS_RAW: Omit<Doctor, 'specialtyName' | 'registeredAt' | 'avatarUrl'>[] = [
-  { id: "doc_1", name: "Dr. Emily Carter", email: "emily.carter@example.com", phone: "555-0101", specialtyId: "spec_1" },
-  { id: "doc_2", name: "Dr. Benjamin Lee", email: "ben.lee@example.com", phone: "555-0102", specialtyId: "spec_2" },
-  { id: "doc_3", name: "Dr. Olivia Garcia", email: "olivia.garcia@example.com", specialtyId: "spec_3" },
-  { id: "doc_4", name: "Dr. Samuel Green", email: "sam.green@example.com", phone: "555-0104", specialtyId: "spec_1" },
-];
+// Interfaz para las especialidades (solo Id y Nombre, para el Select)
+export interface Specialty {
+  Id: number;
+  Nombre: string;
+}
 
-const getInitialDoctors = (): Doctor[] => {
-  return MOCK_DOCTORS_RAW.map((doc, index) => ({
-    ...doc,
-    specialtyName: MOCK_SPECIALTIES.find(s => s.id === doc.specialtyId)?.name || "Unknown",
-    avatarUrl: `https://placehold.co/100x100.png?text=${doc.name.charAt(0)}`,
-    registeredAt: new Date(Date.now() - index * 1000 * 60 * 60 * 24 * 30).toISOString().split('T')[0], // Stagger registration dates
-  }));
-};
+// MOCK DATA para Especialidades (en una app real, esto se obtendría de una API)
+const MOCK_SPECIALTIES: Specialty[] = [
+  { Id: 1, Nombre: "Cardiología" },
+  { Id: 2, Nombre: "Pediatría" },
+  { Id: 3, Nombre: "Neurología" },
+  { Id: 4, Nombre: "Ortopedia" },
+  { Id: 5, Nombre: "Dermatología" },
+  { Id: 6, Nombre: "Neurologia" },
+  { Id: 7, Nombre: "Oftalmologia" },
+  { Id: 8, Nombre: "Otorrinolaringologia" },
+  { Id: 9, Nombre: "Ortopedia" },
+  { Id: 10, Nombre: "Psiquiatria" },
+  { Id: 11, Nombre: "Urologia" },
+  { Id: 12, Nombre: "Endocrinologia" },
+  { Id: 13, Nombre: "Gastroenterologia" },
+  { Id: 14, Nombre: "Nefrologia" },
+  { Id: 15, Nombre: "Oncologia" },
+  { Id: 16, Nombre: "Reumatologia" },
+  { Id: 17, Nombre: "Neumologia" },
+  { Id: 18, Nombre: "Traumatologia" },
+  { Id: 19, Nombre: "Infectologia" },
+  { Id: 20, Nombre: "Alergologia" },
+
+];
 
 
 export default function DoctorManagementPage() {
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [specialties, setSpecialties] = useState<Pick<Specialty, 'id' | 'name'>[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]); // Lista de médicos
+  const [specialties, setSpecialties] = useState<Specialty[]>([]); // Lista de especialidades
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [doctorToDelete, setDoctorToDelete] = useState<Doctor | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingOrDeleting, setIsSavingOrDeleting] = useState(false);
   const { toast } = useToast();
-  
-  useEffect(() => {
-    // Simulate fetching data
-    setDoctors(getInitialDoctors());
-    setSpecialties(MOCK_SPECIALTIES);
-  }, []);
 
+  console.log("DEBUG: isSavingOrDeleting (render):", isSavingOrDeleting);
+
+  // --- Función para obtener médicos de la API ---
+  const fetchDoctors = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("https://localhost:44314/api/Usuario"); // Obtener todos los usuarios
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al cargar médicos desde el backend.");
+      }
+      
+      const rawData: any[] = await response.json(); 
+      
+      // Mapea y filtra a Doctor, convirtiendo Estatus a booleano y añadiendo SpecialtyName
+      const processedDoctors: Doctor[] = rawData
+        .filter((u: any) => u.Rol === "Medico") // Filtrar solo médicos
+        .map((user: any) => ({
+          ...user,
+          Estatus: Boolean(user.Estatus), // Convertir 0/1 a false/true
+          // Añadir el nombre de la especialidad para mostrar en la tabla
+          SpecialtyName: MOCK_SPECIALTIES.find(s => s.Id === user.EspecialidadId)?.Nombre || "N/A",
+        }));
+
+      setDoctors(processedDoctors);
+      setSpecialties(MOCK_SPECIALTIES); // Cargar especialidades mockeadas
+    } catch (error: any) {
+      console.error("Error obteniendo médicos:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de carga",
+        description: error.message || "No se pudieron obtener los médicos.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]); 
+
+  useEffect(() => {
+    fetchDoctors();
+  }, [fetchDoctors]);
 
   const handleRegisterDoctor = () => {
-    setSelectedDoctor(null);
+    setSelectedDoctor(null); // Es un nuevo médico
     setIsFormOpen(true);
   };
 
@@ -97,19 +166,61 @@ export default function DoctorManagementPage() {
     setIsFormOpen(true);
   };
 
-  const handleSaveDoctor = (doctorData: Omit<Doctor, 'registeredAt' | 'avatarUrl' | 'specialtyName'> & { id?: string }) => {
-    const specialtyName = specialties.find(s => s.id === doctorData.specialtyId)?.name || "Unknown";
-    if (doctorData.id) {
-      setDoctors(doctors.map(d => d.id === doctorData.id ? { ...d, ...doctorData, specialtyName } : d));
-    } else {
-      const newDoctor: Doctor = {
-        ...doctorData,
-        id: `doc_${Date.now()}`,
-        avatarUrl: `https://placehold.co/100x100.png?text=${doctorData.name.charAt(0)}`,
-        registeredAt: new Date().toISOString().split('T')[0],
-        specialtyName,
-      };
-      setDoctors([newDoctor, ...doctors]);
+  // --- Función para guardar o actualizar un médico ---
+  const handleSaveDoctor = async (doctorData: DoctorFormData) => {
+    console.log("DEBUG: handleSaveDoctor iniciando. isSavingOrDeleting antes:", isSavingOrDeleting);
+    setIsSavingOrDeleting(true);
+    console.log("DEBUG: isSavingOrDeleting después de set true:", true);
+
+    const isEditing = typeof doctorData.Id === "number";
+    const method = isEditing ? "PUT" : "POST";
+    const endpoint = "https://localhost:44314/api/Usuario"; // Siempre la API de Usuario
+
+    // Prepara el payload para el backend
+    const payload = {
+      Id: isEditing ? doctorData.Id : undefined,
+      Cedula: doctorData.Cedula,
+      Nombre: doctorData.Nombre,
+      Apellido: doctorData.Apellido,
+      Email: doctorData.Email,
+      Contrasena: doctorData.Contrasena || (isEditing ? undefined : "DefaultPass123"), // Default si es nuevo y no se proporciona
+      Rol: "Medico", // Siempre será "Medico" para este formulario
+      EspecialidadId: doctorData.EspecialidadId, // Ya viene como number/null desde el formulario
+      Estatus: typeof doctorData.Estatus === 'boolean' ? (doctorData.Estatus ? 1 : 0) : 1, // Convierte a 1/0
+    };
+
+    try {
+      const response = await fetch(
+        isEditing ? `${endpoint}/${payload.Id}` : endpoint, 
+        {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `Fallo al ${isEditing ? "actualizar" : "registrar"} el médico.`);
+      }
+
+      toast({
+        title: `Médico ${isEditing ? "actualizado" : "registrado"}`,
+        description: `${data.mensaje || `El médico ${payload.Nombre} ha sido ${isEditing ? "actualizado" : "registrado"} exitosamente.`}`,
+      });
+      setIsFormOpen(false);
+      fetchDoctors(); // Recargar la lista
+    } catch (error: any) {
+      console.error("DEBUG: Error en handleSaveDoctor:", error);
+      toast({
+        variant: "destructive",
+        title: `Error al ${isEditing ? "actualizar" : "registrar"} médico`,
+        description: error.message || "Ocurrió un error al guardar el médico.",
+      });
+    } finally {
+      setIsSavingOrDeleting(false);
+      console.log("DEBUG: handleSaveDoctor finalizando. isSavingOrDeleting después:", false);
     }
   };
   
@@ -118,23 +229,75 @@ export default function DoctorManagementPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDeleteDoctor = () => {
-    if (doctorToDelete) {
-      setDoctors(doctors.filter(d => d.id !== doctorToDelete.id));
+  const confirmDeleteDoctor = async () => {
+    if (!doctorToDelete) return;
+
+    console.log("DEBUG: confirmDeleteDoctor iniciando. isSavingOrDeleting antes:", isSavingOrDeleting);
+    setIsSavingOrDeleting(true);
+    console.log("DEBUG: isSavingOrDeleting después de set true:", true);
+    try {
+      const response = await fetch(`https://localhost:44314/api/Usuario/${doctorToDelete.Id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Fallo al eliminar el médico.");
+      }
+
       toast({
-        title: "Doctor Profile Deleted",
-        description: `${doctorToDelete.name}'s profile has been successfully deleted.`,
+        title: "Médico Eliminado",
+        description: `${data.mensaje || `El médico ${doctorToDelete.Nombre} ha sido eliminado correctamente.`}`,
       });
       setDoctorToDelete(null);
+      setIsDeleteDialogOpen(false);
+      fetchDoctors(); // Recargar la lista
+    } catch (error: any) {
+      console.error("DEBUG: Error en confirmDeleteDoctor:", error);
+      toast({
+        variant: "destructive",
+        title: "Error al eliminar",
+        description: error.message || "Ocurrió un error al eliminar el médico.",
+      });
+    } finally {
+      setIsSavingOrDeleting(false);
+      console.log("DEBUG: confirmDeleteDoctor finalizando. isSavingOrDeleting después:", false);
     }
-    setIsDeleteDialogOpen(false);
   };
+
+  const getRoleBadgeVariant = (rol: Doctor["Rol"]) => {
+    switch (rol) {
+      case "Admin": 
+        return "destructive";
+      case "Medico": 
+        return "default";
+      case "Paciente": 
+        return "secondary";
+      default:
+        return "outline";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen-minus-header">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="mt-4 text-lg text-muted-foreground">
+          Cargando médicos...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
-      <PageHeader title="Doctor Management" description="Manage doctor profiles, specialties, and schedules.">
-        <Button onClick={handleRegisterDoctor}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Register Doctor
+      <PageHeader
+        title="Gestión de Médicos"
+        description="Administra todas las cuentas de médico en el sistema."
+      >
+        <Button onClick={handleRegisterDoctor} disabled={isSavingOrDeleting}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Registrar Médico
         </Button>
       </PageHeader>
 
@@ -142,84 +305,123 @@ export default function DoctorManagementPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Specialty</TableHead>
+              <TableHead>Cédula</TableHead>
+              <TableHead>Nombre Completo</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Registered</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Especialidad</TableHead> {/* <--- CAMBIO AQUÍ */}
+              <TableHead>Estatus</TableHead>
+              <TableHead>Fecha de Registro</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {doctors.map((doctor) => (
-              <TableRow key={doctor.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={doctor.avatarUrl} alt={doctor.name} data-ai-hint="doctor portrait" />
-                      <AvatarFallback>{doctor.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium">{doctor.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell>{doctor.specialtyName}</TableCell>
-                <TableCell>{doctor.email}</TableCell>
-                <TableCell>{doctor.phone || "N/A"}</TableCell>
-                <TableCell>{new Date(doctor.registeredAt).toLocaleDateString()}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleEditDoctor(doctor)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit Profile
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => alert(`View appointment history for ${doctor.name}`)}>
-                        <History className="mr-2 h-4 w-4" /> View History
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleDeleteDoctor(doctor)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete Profile
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {doctors.length === 0 ? ( 
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className="h-24 text-center text-muted-foreground"
+                >
+                  No se encontraron médicos.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              doctors.map((doctor) => (
+                <TableRow key={doctor.Id}>
+                  <TableCell>{doctor.Cedula}</TableCell>
+                  <TableCell className="font-medium">{`${doctor.Nombre} ${doctor.Apellido}`}</TableCell>
+                  <TableCell>{doctor.Email}</TableCell>
+                  <TableCell>{doctor.SpecialtyName || "N/A"}</TableCell> {/* Muestra el nombre de la especialidad */}
+                  <TableCell>
+                    <Badge
+                      variant={doctor.Estatus ? "default" : "secondary"}
+                      className="capitalize"
+                    >
+                      {doctor.Estatus ? "Activo" : "Inactivo"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(doctor.FechaRegistro).toLocaleDateString("es-CO", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          disabled={isSavingOrDeleting}
+                        >
+                          <span className="sr-only">Abrir menú</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => handleEditDoctor(doctor)}
+                          disabled={isSavingOrDeleting}
+                        >
+                          <Edit className="mr-2 h-4 w-4" /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteDoctor(doctor)}
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          disabled={isSavingOrDeleting}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
-      {doctors.length === 0 && (
-        <div className="text-center text-muted-foreground mt-8">
-          No doctors found.
-        </div>
-      )}
 
       <DoctorForm
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
         doctor={selectedDoctor}
-        specialties={specialties}
+        specialties={specialties} // Pasa las especialidades al formulario
         onSave={handleSaveDoctor}
+        isLoading={isSavingOrDeleting} 
       />
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete Dr. {doctorToDelete?.name}'s profile.
+              Esta acción no se puede deshacer. Esto eliminará permanentemente
+              la cuenta del médico{" "}
+              <span className="font-medium">
+                {doctorToDelete?.Nombre} {doctorToDelete?.Apellido}
+              </span>
+              .
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteDoctor} className="bg-destructive hover:bg-destructive/90">
-              Delete
+            <AlertDialogCancel disabled={isSavingOrDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteDoctor}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isSavingOrDeleting}
+            >
+              {isSavingOrDeleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}{" "}
+              Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

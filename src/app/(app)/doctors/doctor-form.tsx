@@ -1,3 +1,4 @@
+// studio/src/app/doctors/doctor-form.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +16,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -29,15 +31,66 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { Doctor } from "./page"; // Assuming Doctor type is exported from page.tsx
-import type { Specialty } from "../specialties/page"; // Assuming Specialty type is exported
+import type { Doctor } from "./page"; // <--- Importa Doctor
+import type { Specialty } from "./page"; // <--- Importa Specialty
+import React from "react";
+import { Switch } from "@/components/ui/switch";
 
+
+// Esquema de validación para el formulario del Doctor (usando Zod)
 const doctorFormSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(2, "Name must be at least 2 characters."),
-  email: z.string().email("Invalid email address."),
-  phone: z.string().min(10, "Phone number must be at least 10 digits.").optional(),
-  specialtyId: z.string({ required_error: "Specialty is required." }),
+  Id: z.number().optional(), // Id es number y opcional para la edición
+  Cedula: z.preprocess(
+    (val) => {
+      if (typeof val === 'string' && val.trim() === '') return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().min(1, "Cédula debe ser un número válido.").optional()
+  ),
+  Nombre: z.string().min(2, "Nombre debe tener al menos 2 caracteres."),
+  Apellido: z.string().min(2, "Apellido debe tener al menos 2 caracteres."),
+  Email: z.string().email("Dirección de correo electrónico inválida.").min(1, "El email es requerido."),
+  Contrasena: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
+  Rol: z.literal("Medico"), // El rol es fijo como "Medico" para este formulario
+  EspecialidadId: z.preprocess(
+    (val) => {
+      if (typeof val === 'string' && val.trim() === '') return null;
+      const num = Number(val);
+      return isNaN(num) ? null : num;
+    },
+    z.number().nullable().optional() // Puede ser número, null o undefined
+  ),
+  Estatus: z.boolean().default(true),
+})
+.superRefine((data, ctx) => {
+  // Validación de Contraseña para nuevos médicos
+  if (data.Id === undefined && (data.Contrasena === undefined || data.Contrasena.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "La contraseña es requerida para nuevos médicos.",
+      path: ["Contrasena"],
+    });
+  }
+
+  // Validación de EspecialidadId para el rol "Medico"
+  // Aunque el Rol ya es "Medico" en este esquema, es buena práctica para consistencia.
+  if (data.EspecialidadId === null || data.EspecialidadId === undefined || data.EspecialidadId === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "La Especialidad ID es obligatoria y debe ser un número válido (no 0).",
+      path: ["EspecialidadId"],
+    });
+  }
+
+  // Validación de Cédula (si se hizo opcional en preprocess para permitir cadenas vacías)
+  if (data.Cedula === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "La cédula es requerida.",
+      path: ["Cedula"],
+    });
+  }
 });
 
 type DoctorFormValues = z.infer<typeof doctorFormSchema>;
@@ -45,120 +98,228 @@ type DoctorFormValues = z.infer<typeof doctorFormSchema>;
 interface DoctorFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  doctor?: Doctor | null;
-  specialties: Pick<Specialty, 'id' | 'name'>[]; // List of available specialties
-  onSave: (doctor: DoctorFormValues) => void;
+  doctor?: Doctor | null; // Cambiado de 'user' a 'doctor'
+  specialties: Specialty[]; // Lista de especialidades
+  onSave: (doctor: DoctorFormValues) => Promise<void>; // Retorna una Promesa
+  isLoading: boolean;
 }
 
-export function DoctorForm({ isOpen, onOpenChange, doctor, specialties, onSave }: DoctorFormProps) {
+export function DoctorForm({ isOpen, onOpenChange, doctor, specialties, onSave, isLoading }: DoctorFormProps) {
   const { toast } = useToast();
   const form = useForm<DoctorFormValues>({
     resolver: zodResolver(doctorFormSchema),
-    defaultValues: doctor || {
-      name: "",
-      email: "",
-      phone: "",
-      specialtyId: "",
+    defaultValues: {
+      Id: doctor?.Id,
+      Cedula: doctor?.Cedula,
+      Nombre: doctor?.Nombre || "",
+      Apellido: doctor?.Apellido || "",
+      Email: doctor?.Email || "",
+      Contrasena: "", // Siempre inicializa a cadena vacía
+      Rol: "Medico", // Rol por defecto es "Medico"
+      EspecialidadId: doctor?.EspecialidadId,
+      Estatus: doctor?.Estatus ?? true,
     },
   });
 
-  const onSubmit = (data: DoctorFormValues) => {
-    onSave(data);
-    toast({
-      title: `Doctor ${doctor ? "updated" : "registered"}`,
-      description: `${data.name} has been successfully ${doctor ? "updated" : "saved"}.`,
-    });
-    onOpenChange(false);
-    form.reset();
-  };
-  
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   React.useEffect(() => {
-    if (doctor) {
-      form.reset(doctor);
-    } else {
-      form.reset({ name: "", email: "", phone: "", specialtyId: specialties.length > 0 ? specialties[0].id : "" });
+    if (isOpen) { 
+      form.reset({
+        Id: doctor?.Id,
+        Cedula: doctor?.Cedula,
+        Nombre: doctor?.Nombre || "",
+        Apellido: doctor?.Apellido || "",
+        Email: doctor?.Email || "",
+        Contrasena: "",
+        Rol: "Medico", 
+        EspecialidadId: doctor?.EspecialidadId,
+        Estatus: doctor?.Estatus ?? true,
+      });
     }
-  }, [doctor, specialties, form.reset, isOpen]);
+  }, [doctor, isOpen, form]);
 
+  const onSubmit = async (data: DoctorFormValues) => {
+    let dataToSend: DoctorFormValues = { ...data };
+    dataToSend.Rol = "Medico"; // Asegurarse de que el rol es "Medico" al enviar
+
+    if (data.Id && (!data.Contrasena || data.Contrasena.trim() === "")) {
+      delete dataToSend.Contrasena;
+    }
+    
+    // Aquí, la llamada a onSave ya es asíncrona y manejará la llamada a la API
+    await onSave(dataToSend);
+    // El onOpenChange y el toast se manejan en page.tsx después de que onSave se complete con éxito.
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{doctor ? "Edit Doctor" : "Register Doctor"}</DialogTitle>
+          <DialogTitle>{doctor ? "Editar Médico" : "Registrar Médico"}</DialogTitle>
           <DialogDescription>
-            {doctor ? "Update the doctor's profile." : "Fill in the form to register a new doctor."}
+            {doctor ? "Actualiza los detalles del médico." : "Completa el formulario para registrar un nuevo médico."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+            {/* Campo de Cédula */}
             <FormField
               control={form.control}
-              name="name"
+              name="Cedula"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full Name</FormLabel>
+                  <FormLabel>Cédula</FormLabel>
                   <FormControl>
-                    <Input placeholder="Dr. John Smith" {...field} />
+                    <Input
+                      type="number"
+                      placeholder="Ej: 123456789"
+                      {...field}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        field.onChange(value === '' ? undefined : Number(value));
+                      }}
+                      value={field.value === undefined ? '' : field.value}
+                      disabled={isLoading}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {/* Campo de Nombre */}
             <FormField
               control={form.control}
-              name="email"
+              name="Nombre"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email Address</FormLabel>
+                  <FormLabel>Nombre</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="dr.smith@example.com" {...field} />
+                    <Input placeholder="Nombre del médico" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {/* Campo de Apellido */}
             <FormField
               control={form.control}
-              name="phone"
+              name="Apellido"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone Number (Optional)</FormLabel>
+                  <FormLabel>Apellido</FormLabel>
                   <FormControl>
-                    <Input type="tel" placeholder="(123) 456-7890" {...field} />
+                    <Input placeholder="Apellido del médico" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {/* Campo de Email */}
             <FormField
               control={form.control}
-              name="specialtyId"
+              name="Email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Specialty</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="medico@example.com" {...field} disabled={isLoading} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* Campo de Contraseña */}
+            <FormField
+                control={form.control}
+                name="Contrasena"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Contraseña {doctor ? "(dejar vacío para no cambiar)" : ""}</FormLabel>
+                        <FormControl>
+                            <Input type="password" placeholder={doctor ? "••••••••" : "Introduce contraseña"} {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            {/* Campo de Rol (no editable, siempre "Medico") */}
+            <FormField
+              control={form.control}
+              name="Rol"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rol</FormLabel>
+                  <FormControl>
+                    <Input value="Médico" disabled /> {/* Muestra "Médico" pero está deshabilitado */}
+                  </FormControl>
+                  <FormDescription>El rol de médico no puede ser cambiado.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* Campo de EspecialidadId */}
+            <FormField
+              control={form.control}
+              name="EspecialidadId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Especialidad</FormLabel>
+                  {/* Asegurarse de que el valor del Select sea un string para onChange,
+                      pero internamente se mapeará a number/null para el formulario */}
+                  <Select 
+                    onValueChange={(value) => field.onChange(value === "" ? null : Number(value))} 
+                    value={field.value === null || field.value === undefined ? "" : String(field.value)}
+                    disabled={isLoading}
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a specialty" />
+                        <SelectValue placeholder="Selecciona una especialidad" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {specialties.map((spec) => (
-                        <SelectItem key={spec.id} value={spec.id}>{spec.name}</SelectItem>
+                        <SelectItem key={spec.Id} value={String(spec.Id)}>
+                          {spec.Nombre}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormDescription>
+                    La especialidad del médico es obligatoria.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {/* Campo de Estatus */}
+            <FormField
+                control={form.control}
+                name="Estatus"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel className="text-base">Estatus Activo</FormLabel>
+                            <FormDescription>
+                                Define si el médico está activo en el sistema.
+                            </FormDescription>
+                        </div>
+                        <FormControl>
+                            <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={isLoading}
+                            />
+                        </FormControl>
+                    </FormItem>
+                )}
+            />
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+                Cancelar
               </Button>
-              <Button type="submit">Save Profile</Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Guardando..." : "Guardar Médico"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>
