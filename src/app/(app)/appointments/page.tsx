@@ -20,7 +20,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, PlusCircle, Edit, XCircle, Download, Filter } from "lucide-react";
+import {
+  MoreHorizontal,
+  PlusCircle,
+  Edit,
+  XCircle,
+  Download,
+} from "lucide-react";
 import { AppointmentForm } from "./appointment-form";
 import {
   AlertDialog,
@@ -42,76 +48,238 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "../users/page";
-import type { Doctor } from "../doctors/page";
+import type { Doctors } from "../doctors/page";
+import { format } from "date-fns";
 
 export interface Appointment {
-  id: string;
-  patientId: string;
-  patientName?: string; // Denormalized
-  doctorId: string;
-  doctorName?: string; // Denormalized
-  date: string; // ISO Date string
-  time: string; // HH:MM
-  status: "scheduled" | "completed" | "cancelled";
-  notes?: string;
-  createdAt: string;
+  id: int;
+  PacienteId: int;
+  MedicoId: int;
+  EspecialidadId: int;
+  Fecha: DateTime;
+  Hora: TimeSpan;
+  Estado: "Pendiente" | "Confirmada" | "Cancelada" | "Terminada";
 }
 
-// MOCK DATA - In a real app, these would be fetched
-const MOCK_PATIENTS: Pick<User, 'id' | 'name'>[] = [
-  { id: "usr_3", name: "Charlie Chaplin" }, { id: "usr_5", name: "Edward Scissorhands" }, { id: "usr_6", name: "Fiona Gallagher" }
-];
-const MOCK_DOCTORS: Pick<Doctor, 'id' | 'name' | 'specialtyName'>[] = [
-  { id: "doc_1", name: "Dr. Emily Carter", specialtyName: "Cardiology" }, { id: "doc_2", name: "Dr. Benjamin Lee", specialtyName: "Pediatrics" }
-];
-
-const MOCK_APPOINTMENTS_RAW: Omit<Appointment, 'patientName' | 'doctorName' | 'createdAt'>[] = [
-  { id: "apt_1", patientId: "usr_3", doctorId: "doc_1", date: new Date(Date.now() + 2 * 24*60*60*1000).toISOString().split('T')[0], time: "10:00", status: "scheduled", notes: "Regular checkup" },
-  { id: "apt_2", patientId: "usr_5", doctorId: "doc_2", date: new Date(Date.now() + 5 * 24*60*60*1000).toISOString().split('T')[0], time: "14:30", status: "scheduled" },
-  { id: "apt_3", patientId: "usr_6", doctorId: "doc_1", date: new Date(Date.now() - 3 * 24*60*60*1000).toISOString().split('T')[0], time: "09:15", status: "completed", notes: "Follow-up successful." },
-  { id: "apt_4", patientId: "usr_3", doctorId: "doc_2", date: new Date(Date.now() - 7 * 24*60*60*1000).toISOString().split('T')[0], time: "11:00", status: "cancelled", notes: "Patient rescheduled." },
-];
-
-const getInitialAppointments = (): Appointment[] => {
-  return MOCK_APPOINTMENTS_RAW.map((apt, index) => ({
-    ...apt,
-    patientName: MOCK_PATIENTS.find(p => p.id === apt.patientId)?.name || "Unknown Patient",
-    doctorName: MOCK_DOCTORS.find(d => d.id === apt.doctorId)?.name || "Unknown Doctor",
-    createdAt: new Date(Date.now() - index * 1000 * 60 * 60 * 24).toISOString().split('T')[0],
-  }));
-};
+const API_BASE_URL = "https://localhost:44314/api";
 
 export default function AppointmentManagementPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patients, setPatients] = useState<Pick<User, 'id' | 'name'>[]>([]);
-  const [doctors, setDoctors] = useState<Pick<Doctor, 'id' | 'name' | 'specialtyName'>[]>([]);
+  const [patients, setPatients] = useState<Pick<User, "id" | "name">[]>([]);
+  const [doctors, setDoctors] = useState<
+    Pick<Doctor, "id" | "name" | "specialtyName">[]
+  >([]);
+  const [specialties, setSpecialties] = useState<
+    { id: string; name: string }[]
+  >([]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [appointmentToCancel, setAppointmentToCancel] = useState<Appointment | null>(null);
-  
+  const [appointmentToCancel, setAppointmentToCancel] =
+    useState<Appointment | null>(null);
+
   const [filterDoctor, setFilterDoctor] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>("");
 
   const { toast } = useToast();
 
+  const fetchAppointments = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/Cita`);
+      if (!response.ok) throw new Error("Failed to fetch appointments");
+      const data: Appointment[] = await response.json();
+      setAppointments(data);
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load appointments",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchPatients = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/Usuario`);
+      if (!response.ok) throw new Error("Failed to fetch patients");
+      const data = await response.json();
+      setPatients(data);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load patients",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchDoctors = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/Medico`);
+      if (!response.ok) throw new Error("Failed to fetch doctors");
+      const data = await response.json();
+      setDoctors(data);
+    } catch (error) {
+      console.error("Error fetching doctors:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load doctors",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchSpecialties = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/Especialidad`);
+      if (!response.ok) throw new Error("Failed to fetch specialties");
+      const data = await response.json();
+      setSpecialties(data);
+    } catch (error) {
+      console.error("Error fetching specialties:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load specialties",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
-    setAppointments(getInitialAppointments());
-    setPatients(MOCK_PATIENTS);
-    setDoctors(MOCK_DOCTORS);
+    fetchAppointments();
+    fetchPatients();
+    fetchDoctors();
+    fetchSpecialties();
   }, []);
 
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter(apt => {
-      const doctorMatch = filterDoctor === "all" || apt.doctorId === filterDoctor;
-      const statusMatch = filterStatus === "all" || apt.status === filterStatus;
-      const dateMatch = filterDate === "" || apt.date === filterDate;
-      return doctorMatch && statusMatch && dateMatch;
-    });
-  }, [appointments, filterDoctor, filterStatus, filterDate]);
+  const getStatusBadgeVariant = (status: Appointment["Estado"]) => {
+    switch (status) {
+      case "Pendiente":
+        return "default";
+      case "Confirmada":
+        return "secondary";
+      case "Terminada":
+        return "outline";
+      case "Cancelada":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
 
+  const handleSaveAppointment = async (appointmentData: any) => {
+    try {
+      const payload = {
+        ...appointmentData,
+        Fecha: format(appointmentData.Fecha, "yyyy-MM-dd") + "T00:00:00",
+        Hora: appointmentData.Hora + ":00",
+      };
+
+      const { id, ...createPayload } = payload;
+
+      let response;
+      if (id) {
+        response = await fetch(`${API_BASE_URL}/Cita/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        response = await fetch(`${API_BASE_URL}/Cita`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(createPayload),
+        });
+      }
+
+      if (!response.ok) throw new Error(response.statusText);
+
+      toast({
+        title: "Success",
+        description: `Appointment ${id ? "updated" : "created"} successfully`,
+      });
+
+      fetchAppointments();
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error saving appointment:", error);
+      toast({
+        title: "Error",
+        description: `Failed to save: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!appointmentToCancel) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/Cita/${appointmentToCancel.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...appointmentToCancel,
+            Estado: "Cancelada",
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to cancel appointment");
+
+      toast({ title: "Appointment Cancelled" });
+      fetchAppointments();
+    } catch (error) {
+      console.error("Cancellation error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel appointment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelDialogOpen(false);
+      setAppointmentToCancel(null);
+    }
+  };
+
+  const filteredAppointments = useMemo(() => {
+    return appointments
+      .map((apt) => {
+        // Asegúrate de que los IDs sean números
+        const pacienteIdNum = Number(apt.PacienteId ?? apt.pacienteId);
+        const medicoIdNum = Number(apt.MedicoId ?? apt.medicoId);
+        const especialidadIdNum = Number(apt.EspecialidadId ?? apt.especialidadId);
+  
+        const patient = patients.find((p) => Number(p.id) === pacienteIdNum);
+        const doctor = doctors.find((d) => Number(d.id) === medicoIdNum);
+        const specialty = specialties.find((s) => Number(s.id) === especialidadIdNum);
+  
+        return {
+          ...apt,
+          pacienteName: patient?.name || "Unknown",
+          medicoName: doctor?.name || "Unknown",
+          especialidadName: specialty?.name || "Unknown",
+        };
+      })
+      .filter((apt) => {
+        const doctorMatch =
+          filterDoctor === "all" ||
+          Number(apt.MedicoId ?? apt.medicoId) === Number(filterDoctor);
+        const statusMatch =
+          filterStatus === "all" || apt.Estado === filterStatus;
+        const dateMatch = filterDate === "" || String(apt.Fecha).startsWith(filterDate);
+        return doctorMatch && statusMatch && dateMatch;
+      });
+  }, [appointments, patients, doctors, specialties, filterDoctor, filterStatus, filterDate]);
 
   const handleCreateAppointment = () => {
     setSelectedAppointment(null);
@@ -123,68 +291,25 @@ export default function AppointmentManagementPage() {
     setIsFormOpen(true);
   };
 
-  const handleSaveAppointment = (appointmentData: Omit<Appointment, 'createdAt' | 'patientName' | 'doctorName'> & { id?: string }) => {
-    const patientName = patients.find(p => p.id === appointmentData.patientId)?.name || "Unknown";
-    const doctorName = doctors.find(d => d.id === appointmentData.doctorId)?.name || "Unknown";
-    const status = appointmentData.status as Appointment['status'];
-
-    if (appointmentData.id) {
-      setAppointments(appointments.map(apt => apt.id === appointmentData.id ? { ...apt, ...appointmentData, date: formatBackendDate(appointmentData.date as unknown as Date), patientName, doctorName, status } : apt));
-    } else {
-      const newAppointment: Appointment = {
-        ...appointmentData,
-        id: `apt_${Date.now()}`,
-        createdAt: new Date().toISOString().split('T')[0],
-        date: formatBackendDate(appointmentData.date as unknown as Date),
-        patientName,
-        doctorName,
-        status,
-      };
-      setAppointments([newAppointment, ...appointments]);
-    }
-  };
-
-  const formatBackendDate = (date: Date): string => {
-    return date.toISOString().split('T')[0];
-  };
-
   const handleCancelAppointment = (appointment: Appointment) => {
     setAppointmentToCancel(appointment);
     setIsCancelDialogOpen(true);
   };
 
-  const confirmCancelAppointment = () => {
-    if (appointmentToCancel) {
-      setAppointments(appointments.map(apt => 
-        apt.id === appointmentToCancel.id ? { ...apt, status: "cancelled" } : apt
-      ));
-      toast({
-        title: "Appointment Cancelled",
-        description: `Appointment with ${appointmentToCancel.patientName} has been cancelled.`,
-      });
-      setAppointmentToCancel(null);
-    }
-    setIsCancelDialogOpen(false);
-  };
-  
-  const getStatusBadgeVariant = (status: Appointment['status']) => {
-    switch (status) {
-      case 'scheduled': return 'default';
-      case 'completed': return 'secondary'; // Using secondary which is often greenish in themes
-      case 'cancelled': return 'destructive';
-      default: return 'outline';
-    }
-  };
-
   const handleExport = () => {
-    // This is a placeholder for actual export functionality
-    toast({ title: "Export Started", description: "Generating appointment data for export..." });
+    toast({
+      title: "Export Started",
+      description: "Generating appointment data for export...",
+    });
     console.log("Exporting appointments:", filteredAppointments);
   };
 
   return (
     <>
-      <PageHeader title="Appointment Management" description="View, schedule, and manage all appointments.">
+      <PageHeader
+        title="Appointment Management"
+        description="View, schedule, and manage all appointments."
+      >
         <Button onClick={handleCreateAppointment}>
           <PlusCircle className="mr-2 h-4 w-4" /> Create Appointment
         </Button>
@@ -193,30 +318,59 @@ export default function AppointmentManagementPage() {
       <div className="mb-6 p-4 border rounded-lg bg-card shadow">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div>
-            <label htmlFor="filter-doctor" className="block text-sm font-medium text-muted-foreground mb-1">Filter by Doctor</label>
+            <label
+              htmlFor="filter-doctor"
+              className="block text-sm font-medium text-muted-foreground mb-1"
+            >
+              Filter by Doctor
+            </label>
             <Select value={filterDoctor} onValueChange={setFilterDoctor}>
-              <SelectTrigger id="filter-doctor"><SelectValue placeholder="All Doctors" /></SelectTrigger>
+              <SelectTrigger id="filter-doctor">
+                <SelectValue placeholder="All Doctors" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Doctors</SelectItem>
-                {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label htmlFor="filter-status" className="block text-sm font-medium text-muted-foreground mb-1">Filter by Status</label>
+            <label
+              htmlFor="filter-status"
+              className="block text-sm font-medium text-muted-foreground mb-1"
+            >
+              Filter by Status
+            </label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger id="filter-status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger id="filter-status">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="Pendiente">Pendiente</SelectItem>
+                <SelectItem value="Confirmada">Confirmada</SelectItem>
+                <SelectItem value="Terminada">Terminada</SelectItem>
+                <SelectItem value="Cancelada">Cancelada</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label htmlFor="filter-date" className="block text-sm font-medium text-muted-foreground mb-1">Filter by Date</label>
-            <Input id="filter-date" type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+            <label
+              htmlFor="filter-date"
+              className="block text-sm font-medium text-muted-foreground mb-1"
+            >
+              Filter by Date
+            </label>
+            <Input
+              id="filter-date"
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
           </div>
           <Button onClick={handleExport} variant="outline">
             <Download className="mr-2 h-4 w-4" /> Export Data
@@ -230,51 +384,75 @@ export default function AppointmentManagementPage() {
             <TableRow>
               <TableHead>Patient</TableHead>
               <TableHead>Doctor</TableHead>
+              <TableHead>Specialty</TableHead>
               <TableHead>Date & Time</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Notes</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAppointments.map((apt) => (
-              <TableRow key={apt.id}>
-                <TableCell className="font-medium">{apt.patientName}</TableCell>
-                <TableCell>{apt.doctorName}</TableCell>
-                <TableCell>{new Date(apt.date).toLocaleDateString()} - {apt.time}</TableCell>
-                <TableCell>
-                  <Badge variant={getStatusBadgeVariant(apt.status)} className="capitalize">{apt.status}</Badge>
-                </TableCell>
-                <TableCell className="max-w-xs truncate">{apt.notes || "N/A"}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleEditAppointment(apt)} disabled={apt.status === 'completed' || apt.status === 'cancelled'}>
-                        <Edit className="mr-2 h-4 w-4" /> Modify
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleCancelAppointment(apt)} disabled={apt.status === 'completed' || apt.status === 'cancelled'} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                        <XCircle className="mr-2 h-4 w-4" /> Cancel
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {filteredAppointments.length > 0 ? (
+              filteredAppointments.map((apt) => (
+                <TableRow key={apt.id}>
+                  <TableCell>{apt.pacienteName}</TableCell>
+                  <TableCell>{apt.medicoName}</TableCell>
+                  <TableCell>{apt.especialidadName}</TableCell>
+                  <TableCell>
+                    {new Date(apt.Fecha).toLocaleDateString()} -{" "}
+                    {apt.Hora.substring(0, 5)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(apt.Estado)}>
+                      {apt.Estado}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => handleEditAppointment(apt)}
+                          disabled={
+                            apt.Estado === "Terminada" ||
+                            apt.Estado === "Cancelada"
+                          }
+                        >
+                          <Edit className="mr-2 h-4 w-4" /> Modify
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleCancelAppointment(apt)}
+                          disabled={
+                            apt.Estado === "Terminada" ||
+                            apt.Estado === "Cancelada"
+                          }
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        >
+                          <XCircle className="mr-2 h-4 w-4" /> Cancel
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-center text-muted-foreground py-8"
+                >
+                  No appointments found with the current filters.
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </div>
-      {filteredAppointments.length === 0 && (
-        <div className="text-center text-muted-foreground mt-8">
-          No appointments found with the current filters.
-        </div>
-      )}
 
       <AppointmentForm
         isOpen={isFormOpen}
@@ -282,20 +460,35 @@ export default function AppointmentManagementPage() {
         appointment={selectedAppointment}
         patients={patients}
         doctors={doctors}
+        specialties={specialties}
         onSave={handleSaveAppointment}
       />
 
-      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+      <AlertDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to cancel this appointment?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Are you sure you want to cancel this appointment?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This action will mark the appointment for {appointmentToCancel?.patientName} with {appointmentToCancel?.doctorName} on {appointmentToCancel ? new Date(appointmentToCancel.date).toLocaleDateString() : ''} as cancelled.
+              This action will mark the appointment for{" "}
+              {appointmentToCancel?.pacienteName} with{" "}
+              {appointmentToCancel?.medicoName} on{" "}
+              {appointmentToCancel
+                ? new Date(appointmentToCancel.Fecha).toLocaleDateString()
+                : ""}{" "}
+              as cancelled.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCancelAppointment} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={confirmCancelAppointment}
+              className="bg-destructive hover:bg-destructive/90"
+            >
               Confirm Cancellation
             </AlertDialogAction>
           </AlertDialogFooter>

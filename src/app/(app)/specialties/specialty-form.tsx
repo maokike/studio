@@ -23,10 +23,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import type { Specialty } from "./page"; // Assuming Specialty type is exported
+import type { Specialty } from "./page";
+import React from "react"; // Add React import
 
 const specialtyFormSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional(), // ID is optional for creation, required for update
   name: z.string().min(3, "Specialty name must be at least 3 characters."),
   description: z.string().optional(),
 });
@@ -51,24 +52,21 @@ export function SpecialtyForm({ isOpen, onOpenChange, specialty, onSave }: Speci
   });
 
   const onSubmit = (data: SpecialtyFormValues) => {
+    // Pass the data to the parent component for API interaction
     onSave(data);
-    toast({
-      title: `Specialty ${specialty ? "updated" : "registered"}`,
-      description: `${data.name} has been successfully ${specialty ? "updated" : "saved"}.`,
-    });
-    onOpenChange(false);
-    form.reset();
+    // The toast and form reset will now be handled by the parent component after successful API call
   };
-  
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-  React.useEffect(() => {
-    if (specialty) {
-      form.reset(specialty);
-    } else {
-      form.reset({ name: "", description: "" });
-    }
-  }, [specialty, form.reset, isOpen]);
 
+  // Effect to reset form when dialog opens or when a new specialty is selected for editing
+  React.useEffect(() => {
+    if (isOpen) {
+      if (specialty) {
+        form.reset(specialty);
+      } else {
+        form.reset({ name: "", description: "" });
+      }
+    }
+  }, [specialty, form, isOpen]); // Added 'form' and 'isOpen' to dependencies
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
