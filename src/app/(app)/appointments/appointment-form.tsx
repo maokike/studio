@@ -34,21 +34,23 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Appointment } from "./page"; // Assuming Appointment type is exported
-import type { User } from "../users/page"; // For patient list
-import type { Doctor } from "../doctors/page"; // For doctor list
-import { Textarea } from "@/components/ui/textarea";
+import type { Appointment } from "./page";
+import type { User } from "../users/page";
+import type { Doctor } from "../doctors/page";
+import React from "react";
+
+const statusOptions = ["Pendiente", "Confirmada", "Cancelada", "Terminada"] as const;
 
 const appointmentFormSchema = z.object({
   id: z.string().optional(),
-  patientId: z.string({ required_error: "Patient is required." }),
-  doctorId: z.string({ required_error: "Doctor is required." }),
-  date: z.date({ required_error: "Date is required." }),
-  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
-  status: z.enum(["scheduled", "completed", "cancelled"], {
+  PacienteId: z.string({ required_error: "Patient is required." }),
+  MedicoId: z.string({ required_error: "Doctor is required." }),
+  EspecialidadId: z.string({ required_error: "Specialty is required." }),
+  Fecha: z.date({ required_error: "Date is required." }),
+  Hora: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
+  Estado: z.enum(statusOptions, {
     required_error: "Status is required.",
   }),
-  notes: z.string().optional(),
 });
 
 type AppointmentFormValues = z.infer<typeof appointmentFormSchema>;
@@ -58,47 +60,57 @@ interface AppointmentFormProps {
   onOpenChange: (isOpen: boolean) => void;
   appointment?: Appointment | null;
   patients: Pick<User, 'id' | 'name'>[];
-  doctors: Pick<Doctor, 'id' | 'name' | 'specialtyName'>[];
+  doctors: Doctor[];
+  specialties: { id: string; name: string }[];
   onSave: (appointment: AppointmentFormValues) => void;
 }
 
-export function AppointmentForm({ isOpen, onOpenChange, appointment, patients, doctors, onSave }: AppointmentFormProps) {
+export function AppointmentForm({ 
+  isOpen, 
+  onOpenChange, 
+  appointment, 
+  patients, 
+  doctors,
+  specialties,
+  onSave 
+}: AppointmentFormProps) {
   const { toast } = useToast();
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentFormSchema),
-    defaultValues: appointment 
-      ? { ...appointment, date: new Date(appointment.date) } 
-      : { status: "scheduled", notes: "" },
+    defaultValues: {
+      PacienteId: "",
+      MedicoId: "",
+      EspecialidadId: "",
+      Fecha: new Date(),
+      Hora: "09:00",
+      Estado: "Pendiente",
+    },
   });
 
   const onSubmit = (data: AppointmentFormValues) => {
     onSave(data);
-    toast({
-      title: `Appointment ${appointment ? "updated" : "created"}`,
-      description: `Appointment has been successfully ${appointment ? "updated" : "saved"}.`,
-    });
-    onOpenChange(false);
-    form.reset();
   };
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   React.useEffect(() => {
     if (isOpen) {
       if (appointment) {
-        form.reset({ ...appointment, date: new Date(appointment.date) });
-      } else {
         form.reset({ 
-          patientId: patients.length > 0 ? patients[0].id : undefined,
-          doctorId: doctors.length > 0 ? doctors[0].id : undefined,
-          date: new Date(), 
-          time: "09:00", 
-          status: "scheduled",
-          notes: "",
+          ...appointment, 
+          Fecha: new Date(appointment.Fecha),
+          Hora: appointment.Hora.substring(0, 5)
+        });
+      } else {
+        form.reset({
+          PacienteId: patients.length > 0 ? patients[0].id : "",
+          MedicoId: doctors.length > 0 ? doctors[0].id : "",
+          EspecialidadId: specialties.length > 0 ? specialties[0].id : "",
+          Fecha: new Date(),
+          Hora: "09:00",
+          Estado: "Pendiente",
         });
       }
     }
-  }, [appointment, isOpen, patients, doctors, form.reset]);
-
+  }, [appointment, isOpen, patients, doctors, specialties, form]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -113,11 +125,11 @@ export function AppointmentForm({ isOpen, onOpenChange, appointment, patients, d
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField
               control={form.control}
-              name="patientId"
+              name="PacienteId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Patient</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Select a patient" /></SelectTrigger>
                     </FormControl>
@@ -131,16 +143,40 @@ export function AppointmentForm({ isOpen, onOpenChange, appointment, patients, d
             />
             <FormField
               control={form.control}
-              name="doctorId"
+              name="MedicoId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Doctor</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Select a doctor" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.specialtyName})</SelectItem>)}
+                      {doctors.map(d => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="EspecialidadId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Specialty</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select a specialty" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {specialties.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -148,84 +184,73 @@ export function AppointmentForm({ isOpen, onOpenChange, appointment, patients, d
               )}
             />
             <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} // Disable past dates
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Time</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="Fecha"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="Hora"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
             <FormField
               control={form.control}
-              name="status"
+              name="Estado"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="scheduled">Scheduled</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      {statusOptions.map(status => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Any relevant notes for this appointment..." {...field} />
-                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
