@@ -1,6 +1,6 @@
 "use client";
-
-import React from "react";
+import React from 'react';
+import { useEffect, useState, useCallback } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
-import type { Doctor, Specialty } from "./page";
 
 const doctorFormSchema = z.object({
   Id: z.number().optional(),
@@ -45,6 +44,7 @@ const doctorFormSchema = z.object({
   Estatus: z.boolean(),
 })
 .superRefine((data, ctx) => {
+  // Solo requerir contraseña para nuevos médicos
   if (!data.Id && (!data.Contrasena || data.Contrasena.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -120,9 +120,6 @@ export function DoctorForm({
           <DialogTitle>
             {doctor ? "Editar Médico" : "Registrar Médico"}
           </DialogTitle>
-          <DialogDescription>
-            {doctor ? "Actualiza los detalles del médico." : "Completa el formulario para registrar un nuevo médico."}
-          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -193,15 +190,14 @@ export function DoctorForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Contraseña {doctor ? "(opcional - dejar vacío para no cambiar)" : "(requerida)"}
+                    Contraseña{doctor ? " (dejar vacío para no cambiar)" : ""}
                   </FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder={doctor ? "Dejar vacío para mantener la actual" : "Mínimo 6 caracteres"}
+                      placeholder={doctor ? "••••••••" : "••••••"}
                       {...field}
                       disabled={isLoading}
-                      value={field.value || ''}
                     />
                   </FormControl>
                   <FormMessage />
