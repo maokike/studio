@@ -34,44 +34,39 @@ import type { User } from "./page";
 import React from "react";
 import { Switch } from "@/components/ui/switch";
 
-// Esquema de validación para el formulario (usando Zod) - ¡TODAS LAS PROPIEDADES EN PASCALCASE!
 const userFormSchema = z.object({
-  Id: z.number().optional(), // Id es number y opcional para la edición
+  Id: z.number().optional(),
   Cedula: z.preprocess(
     (val) => {
-      // Si el valor es una cadena vacía o solo espacios, devuélvelo como undefined para que optional lo maneje.
-      // Si es un número o puede convertirse, hazlo.
       if (typeof val === 'string' && val.trim() === '') return undefined;
       const num = Number(val);
-      return isNaN(num) ? undefined : num; // Si no es un número válido, también undefined
+      return isNaN(num) ? undefined : num;
     },
-    z.number().min(1, "Cédula debe ser un número válido.").optional() // Ahora Cedula puede ser un número o undefined
+    z.number().min(1, "Cédula debe ser un número válido.").optional()
   ),
   Nombre: z.string().min(2, "Nombre debe tener al menos 2 caracteres."),
   Apellido: z.string().min(2, "Apellido debe tener al menos 2 caracteres."),
   Email: z.string().email("Dirección de correo electrónico inválida.").min(1, "El email es requerido."),
-  // Simplificamos Contrasena. La validación condicional se mueve a superRefine.
-  // min(6) se aplicará si se proporciona una cadena. optional() permite undefined.
-  Contrasena: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
+  // Modificación clave: Validación condicional para contraseña
+  Contrasena: z.union([
+    z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
+    z.literal('')
+  ]).optional().transform(val => val === '' ? undefined : val),
   Rol: z.enum(["Paciente", "Medico", "Admin"], {
     required_error: "El rol es obligatorio.",
   }),
   EspecialidadId: z.preprocess(
     (val) => {
-      // Preprocesa para convertir cadenas vacías a null, y otros valores a número.
-      // Si el valor es una cadena vacía o solo espacios, se convierte a null.
       if (typeof val === 'string' && val.trim() === '') return null;
-      // Intenta convertir a número. Si no es un número válido, deja null.
       const num = Number(val);
       return isNaN(num) ? null : num;
     },
-    z.number().nullable().optional() // Ahora puede ser número, null o undefined
+    z.number().nullable().optional()
   ),
   Estatus: z.boolean().default(true),
 })
 .superRefine((data, ctx) => {
-  // === Validación de Contrasena (Condicional para nuevos usuarios) ===
-  // Si NO hay Id (es un nuevo usuario) y la contraseña no está definida o está vacía (solo espacios)
+  // Validación de contraseña solo para nuevos usuarios
   if (data.Id === undefined && (data.Contrasena === undefined || data.Contrasena.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -80,11 +75,7 @@ const userFormSchema = z.object({
     });
   }
 
-  // === Validación de EspecialidadId (Condicional para médicos) ===
   if (data.Rol === "Medico") {
-    // Si el rol es 'Medico', EspecialidadId debe ser un número válido (no null, no undefined, no 0).
-    // El preprocess ya asegura que si es string vacío, es null.
-    // Aquí verificamos si es null o undefined, o 0 (si 0 es inválido para tu lógica).
     if (data.EspecialidadId === null || data.EspecialidadId === undefined || data.EspecialidadId === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -94,8 +85,6 @@ const userFormSchema = z.object({
     }
   }
 
-  // === Validación de Cédula (Si es necesaria una validación condicional más allá de .min(1)) ===
-  // Por ejemplo, si debe ser requerido en todos los casos, pero en el preprocess permitiste undefined para cadena vacía.
   if (data.Cedula === undefined) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -104,7 +93,6 @@ const userFormSchema = z.object({
     });
   }
 });
-
 
 type UserFormValues = z.infer<typeof userFormSchema>;
 
@@ -120,68 +108,34 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
   const { toast } = useToast();
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
-    // Usamos 'user' para los valores iniciales. Si 'user' es null/undefined, se usarán los defaults de Zod o vacíos.
     defaultValues: {
         Id: user?.Id,
         Cedula: user?.Cedula,
         Nombre: user?.Nombre || "",
         Apellido: user?.Apellido || "",
         Email: user?.Email || "",
-        Contrasena: "", // Siempre inicializa a cadena vacía para que el input sea controlado
+        Contrasena: "",
         Rol: user?.Rol || "Paciente",
         EspecialidadId: user?.EspecialidadId,
         Estatus: user?.Estatus ?? true,
     },
   });
 
-  // Este useEffect se encargará de resetear el formulario cuando se abra o el usuario cambie
   React.useEffect(() => {
-    if (isOpen) { // Solo resetea si el diálogo se abre (o si el usuario cambia mientras está abierto)
+    if (isOpen) {
       form.reset({
         Id: user?.Id,
         Cedula: user?.Cedula,
         Nombre: user?.Nombre || "",
         Apellido: user?.Apellido || "",
         Email: user?.Email || "",
-        Contrasena: "", // Siempre limpia la contraseña al abrir o editar
+        Contrasena: "",
         Rol: user?.Rol || "Paciente",
         EspecialidadId: user?.EspecialidadId,
         Estatus: user?.Estatus ?? true,
       });
     }
-  }, [user, isOpen, form]); // Añadimos 'form' a las dependencias. 'form.reset' no es necesario si usas el objeto 'form'.
-
-  const onSubmit = async (data: UserFormValues) => {
-    let dataToSend: UserFormValues = { ...data };
-  
-    // Si es edición y la contraseña está vacía, no la envíes
-    if (data.Id && (!data.Contrasena || data.Contrasena.trim() === "")) {
-      delete dataToSend.Contrasena;
-    }
-  
-    try {
-      if (data.Id) {
-        // EDITAR usuario (PUT)
-        await fetch(`/api/Usuario/${data.Id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataToSend),
-        });
-      } else {
-        // CREAR usuario (POST)
-        await fetch("/api/Usuario", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataToSend),
-        });
-      }
-      toast({ title: "Usuario guardado correctamente." });
-      onOpenChange(false);
-    } catch (error) {
-      toast({ title: "Error al guardar usuario.", variant: "destructive" });
-    }
-  };
-
+  }, [user, isOpen, form]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -193,8 +147,7 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-            {/* Campo de Cédula */}
+          <form onSubmit={form.handleSubmit(onSave)} className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="Cedula"
@@ -208,7 +161,6 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                       {...field}
                       onChange={(e) => {
                         const value = e.target.value;
-                        // Convertir a número. Si está vacío, undefined.
                         field.onChange(value === '' ? undefined : Number(value));
                       }}
                       value={field.value === undefined ? '' : field.value}
@@ -219,7 +171,6 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                 </FormItem>
               )}
             />
-            {/* Campo de Nombre */}
             <FormField
               control={form.control}
               name="Nombre"
@@ -233,7 +184,6 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                 </FormItem>
               )}
             />
-            {/* Campo de Apellido */}
             <FormField
               control={form.control}
               name="Apellido"
@@ -247,7 +197,6 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                 </FormItem>
               )}
             />
-            {/* Campo de Email */}
             <FormField
               control={form.control}
               name="Email"
@@ -261,21 +210,31 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                 </FormItem>
               )}
             />
-            {/* Campo de Contraseña */}
             <FormField
                 control={form.control}
                 name="Contrasena"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Contraseña {user ? "(dejar vacío para no cambiar)" : ""}</FormLabel>
+                        <FormLabel>
+                          Contraseña {user ? "(opcional)" : "*"}
+                        </FormLabel>
                         <FormControl>
-                            <Input type="password" placeholder={user ? "••••••••" : "Introduce contraseña"} {...field} disabled={isLoading} />
+                            <Input 
+                                type="password" 
+                                placeholder={user ? "Dejar vacío para no cambiar" : "Mínimo 6 caracteres"} 
+                                {...field} 
+                                disabled={isLoading} 
+                            />
                         </FormControl>
+                        <FormDescription>
+                            {user 
+                              ? "Deje vacío para mantener la contraseña actual" 
+                              : "Requerida para nuevos usuarios"}
+                        </FormDescription>
                         <FormMessage />
                     </FormItem>
                 )}
             />
-            {/* Campo de Rol */}
             <FormField
               control={form.control}
               name="Rol"
@@ -298,7 +257,6 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                 </FormItem>
               )}
             />
-            {/* Campo de EspecialidadId (Solo para médicos) */}
             {form.watch("Rol") === "Medico" && (
                 <FormField
                     control={form.control}
@@ -313,10 +271,8 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                                     {...field}
                                     onChange={(e) => {
                                         const value = e.target.value;
-                                        // Si la cadena está vacía, pasa null. De lo contrario, convierte a número.
                                         field.onChange(value === '' ? null : Number(value));
                                     }}
-                                    // Si el valor es null, mostrar cadena vacía en el input
                                     value={field.value === null ? "" : field.value}
                                     disabled={isLoading}
                                 />
@@ -329,7 +285,6 @@ export function UserForm({ isOpen, onOpenChange, user, onSave, isLoading }: User
                     )}
                 />
             )}
-            {/* Campo de Estatus */}
             <FormField
                 control={form.control}
                 name="Estatus"
