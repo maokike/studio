@@ -78,8 +78,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <Logo className="h-8 w-8 text-primary" />
-            <AppLogoText />
+            <Logo className="h-24 w-24 text-primary" />
+            {/* <AppLogoText /> */}
           </div>
           <CardTitle className="text-2xl font-headline">Login</CardTitle>
           <CardDescription>

@@ -36,20 +36,20 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Appointment } from "./page";
 import type { User } from "../users/page";
-import type { Doctor } from "../doctors/page";
+import type { Doctors } from "../doctors/page";
 import React from "react";
 
 const statusOptions = ["Pendiente", "Confirmada", "Cancelada", "Terminada"] as const;
 
 const appointmentFormSchema = z.object({
   id: z.string().optional(),
-  PacienteId: z.string({ required_error: "Patient is required." }),
-  MedicoId: z.string({ required_error: "Doctor is required." }),
-  EspecialidadId: z.string({ required_error: "Specialty is required." }),
-  Fecha: z.date({ required_error: "Date is required." }),
-  Hora: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
+  PacienteId: z.string({ required_error: "Se requiere paciente." }),
+  MedicoId: z.string({ required_error: "Se requiere médico." }),
+  EspecialidadId: z.string({ required_error: "Se requiere especialidad." }),
+  Fecha: z.date({ required_error: "Se requiere fecha." }),
+  Hora: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato de hora inválido (HH:MM)."),
   Estado: z.enum(statusOptions, {
-    required_error: "Status is required.",
+    required_error: "Se requiere estado.",
   }),
 });
 
@@ -60,7 +60,7 @@ interface AppointmentFormProps {
   onOpenChange: (isOpen: boolean) => void;
   appointment?: Appointment | null;
   patients: Pick<User, 'id' | 'name'>[];
-  doctors: Doctor[];
+  doctors: Doctors[];
   specialties: { id: string; name: string }[];
   onSave: (appointment: AppointmentFormValues) => void;
 }
@@ -95,15 +95,19 @@ export function AppointmentForm({
     if (isOpen) {
       if (appointment) {
         form.reset({ 
-          ...appointment, 
+          ...appointment,
+          // Convertir IDs a strings
+          PacienteId: String(appointment.PacienteId || appointment.pacienteId),
+          MedicoId: String(appointment.MedicoId || appointment.medicoId),
+          EspecialidadId: String(appointment.EspecialidadId || appointment.especialidadId),
           Fecha: new Date(appointment.Fecha),
           Hora: appointment.Hora.substring(0, 5)
         });
       } else {
         form.reset({
-          PacienteId: patients.length > 0 ? patients[0].id : "",
-          MedicoId: doctors.length > 0 ? doctors[0].id : "",
-          EspecialidadId: specialties.length > 0 ? specialties[0].id : "",
+          PacienteId: patients.length > 0 ? String(patients[0].id) : "",
+          MedicoId: doctors.length > 0 ? String(doctors[0].id) : "",
+          EspecialidadId: specialties.length > 0 ? String(specialties[0].id) : "",
           Fecha: new Date(),
           Hora: "09:00",
           Estado: "Pendiente",
@@ -116,9 +120,9 @@ export function AppointmentForm({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{appointment ? "Edit Appointment" : "Create Appointment"}</DialogTitle>
+          <DialogTitle>{appointment ? "Editar Cita" : "Crear Cita"}</DialogTitle>
           <DialogDescription>
-            {appointment ? "Update appointment details." : "Fill in the form to schedule a new appointment."}
+            {appointment ? "Actualiza los detalles de la cita." : "Completa el formulario para programar una nueva cita."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -128,13 +132,13 @@ export function AppointmentForm({
               name="PacienteId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Patient</FormLabel>
+                  <FormLabel>Paciente</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select a patient" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar paciente" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {patients.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      {patients.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -146,14 +150,14 @@ export function AppointmentForm({
               name="MedicoId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Doctor</FormLabel>
+                  <FormLabel>Médico</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select a doctor" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar médico" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {doctors.map(d => (
-                        <SelectItem key={d.id} value={d.id}>
+                        <SelectItem key={d.id} value={String(d.id)}>
                           {d.name}
                         </SelectItem>
                       ))}
@@ -168,10 +172,10 @@ export function AppointmentForm({
               name="EspecialidadId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Specialty</FormLabel>
+                  <FormLabel>Especialidad</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select a specialty" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar especialidad" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {specialties.map(s => (
@@ -189,7 +193,7 @@ export function AppointmentForm({
                 name="Fecha"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel>Fecha</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -200,7 +204,7 @@ export function AppointmentForm({
                               !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            {field.value ? format(field.value, "PPP") : <span>Seleccionar fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -224,7 +228,7 @@ export function AppointmentForm({
                 name="Hora"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Time</FormLabel>
+                    <FormLabel>Hora</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} />
                     </FormControl>
@@ -238,10 +242,10 @@ export function AppointmentForm({
               name="Estado"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status</FormLabel>
+                  <FormLabel>Estado</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {statusOptions.map(status => (
@@ -256,8 +260,8 @@ export function AppointmentForm({
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit">Save Appointment</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              <Button type="submit">Guardar Cita</Button>
             </DialogFooter>
           </form>
         </Form>

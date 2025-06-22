@@ -50,15 +50,20 @@ import { useToast } from "@/hooks/use-toast";
 import type { User } from "../users/page";
 import type { Doctors } from "../doctors/page";
 import { format } from "date-fns";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 export interface Appointment {
-  id: int;
-  PacienteId: int;
-  MedicoId: int;
-  EspecialidadId: int;
-  Fecha: DateTime;
-  Hora: TimeSpan;
+  id: number;
+  PacienteId: number;
+  MedicoId: number;
+  EspecialidadId: number;
+  Fecha: string;
+  Hora: string;
   Estado: "Pendiente" | "Confirmada" | "Cancelada" | "Terminada";
+  pacienteName?: string;
+  medicoName?: string;
+  especialidadName?: string;
 }
 
 const API_BASE_URL = "https://localhost:44314/api";
@@ -67,7 +72,7 @@ export default function AppointmentManagementPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Pick<User, "id" | "name">[]>([]);
   const [doctors, setDoctors] = useState<
-    Pick<Doctor, "id" | "name" | "specialtyName">[]
+    Pick<Doctors, "id" | "name" | "specialtyName">[]
   >([]);
   const [specialties, setSpecialties] = useState<
     { id: string; name: string }[]
@@ -107,7 +112,13 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Usuario`);
       if (!response.ok) throw new Error("Failed to fetch patients");
       const data = await response.json();
-      setPatients(data);
+      const pacientes = data
+        .filter((u: any) => u.Rol === "Paciente")
+        .map((u: any) => ({
+          id: u.Id,
+          name: `${u.Nombre} ${u.Apellido}`,
+        }));
+      setPatients(pacientes);
     } catch (error) {
       console.error("Error fetching patients:", error);
       toast({
@@ -123,7 +134,13 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Medico`);
       if (!response.ok) throw new Error("Failed to fetch doctors");
       const data = await response.json();
-      setDoctors(data);
+      // Ajusta el mapeo según la estructura que devuelve tu API de Medico
+      const medicos = data.map((u: any) => ({
+        id: u.Id,
+        name: `${u.Nombre} ${u.Apellido}`,
+        specialtyName: u.EspecialidadNombre || "",
+      }));
+      setDoctors(medicos);
     } catch (error) {
       console.error("Error fetching doctors:", error);
       toast({
@@ -139,7 +156,12 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Especialidad`);
       if (!response.ok) throw new Error("Failed to fetch specialties");
       const data = await response.json();
-      setSpecialties(data);
+      // Mapea a la estructura esperada por tu UI
+      const specialties = data.map((s: any) => ({
+        id: s.Id,
+        name: s.Nombre,
+      }));
+      setSpecialties(specialties);
     } catch (error) {
       console.error("Error fetching specialties:", error);
       toast({
@@ -200,8 +222,8 @@ export default function AppointmentManagementPage() {
       if (!response.ok) throw new Error(response.statusText);
 
       toast({
-        title: "Success",
-        description: `Appointment ${id ? "updated" : "created"} successfully`,
+        title: "Éxito",
+        description: `Cita ${id ? "actualizada" : "creada"} correctamente`,
       });
 
       fetchAppointments();
@@ -236,13 +258,13 @@ export default function AppointmentManagementPage() {
 
       if (!response.ok) throw new Error("Failed to cancel appointment");
 
-      toast({ title: "Appointment Cancelled" });
+      toast({ title: "Cita cancelada" });
       fetchAppointments();
     } catch (error) {
       console.error("Cancellation error:", error);
       toast({
         title: "Error",
-        description: "Failed to cancel appointment",
+        description: "No se pudo cancelar la cita",
         variant: "destructive",
       });
     } finally {
@@ -254,29 +276,35 @@ export default function AppointmentManagementPage() {
   const filteredAppointments = useMemo(() => {
     return appointments
       .map((apt) => {
-        // Asegúrate de que los IDs sean números
-        const pacienteIdNum = Number(apt.PacienteId ?? apt.pacienteId);
-        const medicoIdNum = Number(apt.MedicoId ?? apt.medicoId);
-        const especialidadIdNum = Number(apt.EspecialidadId ?? apt.especialidadId);
-  
-        const patient = patients.find((p) => Number(p.id) === pacienteIdNum);
-        const doctor = doctors.find((d) => Number(d.id) === medicoIdNum);
-        const specialty = specialties.find((s) => Number(s.id) === especialidadIdNum);
-  
+        // Manejar diferentes estructuras de la API
+        const pacienteId = apt.PacienteId || apt.pacienteId;
+        const medicoId = apt.MedicoId || apt.medicoId;
+        const especialidadId = apt.EspecialidadId || apt.especialidadId;
+        
+        const patient = patients.find(p => p.id === pacienteId);
+        const doctor = doctors.find(d => d.id === medicoId);
+        const specialty = specialties.find(s => s.id === String(especialidadId));
+
         return {
           ...apt,
-          pacienteName: patient?.name || "Unknown",
-          medicoName: doctor?.name || "Unknown",
-          especialidadName: specialty?.name || "Unknown",
+          pacienteName: patient?.name || "Desconocido",
+          medicoName: doctor?.name || "Desconocido",
+          especialidadName: specialty?.name || "Desconocida",
         };
       })
       .filter((apt) => {
         const doctorMatch =
-          filterDoctor === "all" ||
-          Number(apt.MedicoId ?? apt.medicoId) === Number(filterDoctor);
+          filterDoctor === "all" || 
+          (apt.MedicoId || apt.medicoId) === Number(filterDoctor);
+          
         const statusMatch =
-          filterStatus === "all" || apt.Estado === filterStatus;
-        const dateMatch = filterDate === "" || String(apt.Fecha).startsWith(filterDate);
+          filterStatus === "all" || 
+          apt.Estado === filterStatus;
+          
+        const dateMatch = 
+          filterDate === "" || 
+          new Date(apt.Fecha).toISOString().split('T')[0] === filterDate;
+          
         return doctorMatch && statusMatch && dateMatch;
       });
   }, [appointments, patients, doctors, specialties, filterDoctor, filterStatus, filterDate]);
@@ -297,21 +325,75 @@ export default function AppointmentManagementPage() {
   };
 
   const handleExport = () => {
-    toast({
-      title: "Export Started",
-      description: "Generating appointment data for export...",
-    });
-    console.log("Exporting appointments:", filteredAppointments);
+    if (filteredAppointments.length === 0) {
+      toast({
+        title: "Sin datos",
+        description: "No hay citas para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      
+      // Título
+      doc.setFontSize(18);
+      doc.text("Reporte de Citas Médicas", 14, 16);
+      
+      // Información de filtros
+      doc.setFontSize(10);
+      doc.text(`Médico: ${filterDoctor === "all" ? "Todos" : doctors.find(d => d.id === Number(filterDoctor))?.name || filterDoctor}`, 14, 24);
+      doc.text(`Estado: ${filterStatus === "all" ? "Todos" : filterStatus}`, 14, 30);
+      doc.text(`Fecha: ${filterDate || "Todas"}`, 14, 36);
+      
+      // Datos de la tabla
+      const headers = [["Paciente", "Médico", "Especialidad", "Fecha", "Hora", "Estado"]];
+      const data = filteredAppointments.map(apt => [
+        apt.pacienteName || "Desconocido",
+        apt.medicoName || "Desconocido",
+        apt.especialidadName || "Desconocida",
+        new Date(apt.Fecha).toLocaleDateString(),
+        apt.Hora.substring(0, 5),
+        apt.Estado
+      ]);
+      
+      // Generar tabla
+      (doc as any).autoTable({
+        head: headers,
+        body: data,
+        startY: 40,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [41, 128, 185] },
+        theme: "grid"
+      });
+      
+      // Guardar PDF
+      const fechaReporte = new Date().toISOString().slice(0, 10);
+      doc.save(`citas_medicas_${fechaReporte}.pdf`);
+      
+      toast({
+        title: "Exportación exitosa",
+        description: "Las citas se exportaron a PDF correctamente",
+      });
+    } catch (error) {
+      console.error("Error en exportación:", error);
+      toast({
+        title: "Error en exportación",
+        description: "Falló la generación del PDF",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <>
       <PageHeader
-        title="Appointment Management"
-        description="View, schedule, and manage all appointments."
+        title="Gestión de Citas"
+        description="Ver, programar y gestionar todas las citas médicas."
       >
         <Button onClick={handleCreateAppointment}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Create Appointment
+          <PlusCircle className="mr-2 h-4 w-4" /> Crear Cita
         </Button>
       </PageHeader>
 
@@ -322,16 +404,16 @@ export default function AppointmentManagementPage() {
               htmlFor="filter-doctor"
               className="block text-sm font-medium text-muted-foreground mb-1"
             >
-              Filter by Doctor
+              Filtrar por Médico
             </label>
             <Select value={filterDoctor} onValueChange={setFilterDoctor}>
               <SelectTrigger id="filter-doctor">
-                <SelectValue placeholder="All Doctors" />
+                <SelectValue placeholder="Todos los médicos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Doctors</SelectItem>
+                <SelectItem value="all">Todos los médicos</SelectItem>
                 {doctors.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
+                  <SelectItem key={d.id} value={String(d.id)}>
                     {d.name}
                   </SelectItem>
                 ))}
@@ -343,14 +425,14 @@ export default function AppointmentManagementPage() {
               htmlFor="filter-status"
               className="block text-sm font-medium text-muted-foreground mb-1"
             >
-              Filter by Status
+              Filtrar por Estado
             </label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger id="filter-status">
-                <SelectValue placeholder="All Statuses" />
+                <SelectValue placeholder="Todos los estados" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="Pendiente">Pendiente</SelectItem>
                 <SelectItem value="Confirmada">Confirmada</SelectItem>
                 <SelectItem value="Terminada">Terminada</SelectItem>
@@ -363,7 +445,7 @@ export default function AppointmentManagementPage() {
               htmlFor="filter-date"
               className="block text-sm font-medium text-muted-foreground mb-1"
             >
-              Filter by Date
+              Filtrar por Fecha
             </label>
             <Input
               id="filter-date"
@@ -373,7 +455,7 @@ export default function AppointmentManagementPage() {
             />
           </div>
           <Button onClick={handleExport} variant="outline">
-            <Download className="mr-2 h-4 w-4" /> Export Data
+            <Download className="mr-2 h-4 w-4" /> Exportar a PDF
           </Button>
         </div>
       </div>
@@ -382,12 +464,12 @@ export default function AppointmentManagementPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Patient</TableHead>
-              <TableHead>Doctor</TableHead>
-              <TableHead>Specialty</TableHead>
-              <TableHead>Date & Time</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Paciente</TableHead>
+              <TableHead>Médico</TableHead>
+              <TableHead>Especialidad</TableHead>
+              <TableHead>Fecha & Hora</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -410,12 +492,12 @@ export default function AppointmentManagementPage() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
+                          <span className="sr-only">Abrir menú</span>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                         <DropdownMenuItem
                           onClick={() => handleEditAppointment(apt)}
                           disabled={
@@ -423,7 +505,7 @@ export default function AppointmentManagementPage() {
                             apt.Estado === "Cancelada"
                           }
                         >
-                          <Edit className="mr-2 h-4 w-4" /> Modify
+                          <Edit className="mr-2 h-4 w-4" /> Modificar
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleCancelAppointment(apt)}
@@ -433,7 +515,7 @@ export default function AppointmentManagementPage() {
                           }
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
                         >
-                          <XCircle className="mr-2 h-4 w-4" /> Cancel
+                          <XCircle className="mr-2 h-4 w-4" /> Cancelar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -446,7 +528,7 @@ export default function AppointmentManagementPage() {
                   colSpan={6}
                   className="text-center text-muted-foreground py-8"
                 >
-                  No appointments found with the current filters.
+                  No se encontraron citas con los filtros actuales.
                 </TableCell>
               </TableRow>
             )}
@@ -471,25 +553,25 @@ export default function AppointmentManagementPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Are you sure you want to cancel this appointment?
+              ¿Estás seguro de cancelar esta cita?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This action will mark the appointment for{" "}
-              {appointmentToCancel?.pacienteName} with{" "}
-              {appointmentToCancel?.medicoName} on{" "}
+              Esta acción marcará la cita de{" "}
+              {appointmentToCancel?.pacienteName} con{" "}
+              {appointmentToCancel?.medicoName} el{" "}
               {appointmentToCancel
                 ? new Date(appointmentToCancel.Fecha).toLocaleDateString()
                 : ""}{" "}
-              as cancelled.
+              como cancelada.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
+            <AlertDialogCancel>Mantener cita</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmCancelAppointment}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Confirm Cancellation
+              Confirmar cancelación
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
