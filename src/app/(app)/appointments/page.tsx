@@ -72,7 +72,7 @@ export default function AppointmentManagementPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Pick<User, "id" | "name">[]>([]);
   const [doctors, setDoctors] = useState<
-    Pick<Doctors, "id" | "name" | "specialtyName">[]
+    Pick<Doctors, "id" | "name"> & { specialtyId: number }[]
   >([]);
   const [specialties, setSpecialties] = useState<
     { id: string; name: string }[]
@@ -134,12 +134,13 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Medico`);
       if (!response.ok) throw new Error("Failed to fetch doctors");
       const data = await response.json();
-      // Ajusta el mapeo según la estructura que devuelve tu API de Medico
+      
       const medicos = data.map((u: any) => ({
         id: u.Id,
         name: `${u.Nombre} ${u.Apellido}`,
-        specialtyName: u.EspecialidadNombre || "",
+        specialtyId: u.EspecialidadId,
       }));
+      
       setDoctors(medicos);
     } catch (error) {
       console.error("Error fetching doctors:", error);
@@ -156,9 +157,8 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Especialidad`);
       if (!response.ok) throw new Error("Failed to fetch specialties");
       const data = await response.json();
-      // Mapea a la estructura esperada por tu UI
       const specialties = data.map((s: any) => ({
-        id: s.Id,
+        id: String(s.Id),
         name: s.Nombre,
       }));
       setSpecialties(specialties);
@@ -276,14 +276,14 @@ export default function AppointmentManagementPage() {
   const filteredAppointments = useMemo(() => {
     return appointments
       .map((apt) => {
-        // Manejar diferentes estructuras de la API
         const pacienteId = apt.PacienteId || apt.pacienteId;
         const medicoId = apt.MedicoId || apt.medicoId;
-        const especialidadId = apt.EspecialidadId || apt.especialidadId;
         
         const patient = patients.find(p => p.id === pacienteId);
         const doctor = doctors.find(d => d.id === medicoId);
-        const specialty = specialties.find(s => s.id === String(especialidadId));
+        const specialty = doctor 
+          ? specialties.find(s => s.id === String(doctor.specialtyId))
+          : null;
 
         return {
           ...apt,
