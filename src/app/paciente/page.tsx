@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import PacienteForm from "./paciente-form";
+import { useRouter } from "next/navigation"; // Importamos useRouter
 
 const sections = [
   { id: "inicio", label: "Inicio" },
@@ -16,6 +17,16 @@ const sections = [
 
 export default function PacientePortal() {
   const [activeSection, setActiveSection] = useState("inicio");
+  const router = useRouter(); // Inicializamos el router
+
+  const handleLogout = () => {
+    // Eliminamos los tokens o datos de sesión
+    localStorage.removeItem("authToken");
+    sessionStorage.removeItem("userData");
+    
+    // Redirigimos a la página de login
+    router.push("/login");
+  };
 
   const proximaCita = "15/07/2025";
   const totalCitas = 3;
@@ -85,6 +96,9 @@ export default function PacientePortal() {
             </li>
           ))}
         </ul>
+        <button onClick={handleLogout} className="logout-btn">
+          Cerrar Sesión
+        </button>
       </nav>
       <main className="portal-main">
         {/* INICIO */}
@@ -315,6 +329,7 @@ export default function PacientePortal() {
           gap: 22px;
           margin: 0;
           padding: 0;
+          flex: 1;
         }
         .portal-nav a {
           text-decoration: none;
@@ -432,10 +447,38 @@ export default function PacientePortal() {
         section.active {
           display: block;
         }
+        .logout-btn {
+          background: #e74c3c;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 8px 16px;
+          font-size: 0.95rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.3s;
+          margin-left: 20px;
+          white-space: nowrap;
+        }
+        
+        .logout-btn:hover {
+          background: #c0392b;
+        }
+        
         @media (max-width: 900px) {
           .info-columns {
             flex-direction: column;
             gap: 16px;
+          }
+          .portal-nav {
+            flex-wrap: wrap;
+          }
+          .portal-nav ul {
+            order: 3;
+            margin-top: 15px;
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 10px;
           }
         }
         @media (max-width: 600px) {
@@ -444,6 +487,11 @@ export default function PacientePortal() {
           }
           .info-columns {
             flex-direction: column;
+          }
+          .logout-btn {
+            margin-left: 10px;
+            padding: 6px 12px;
+            font-size: 0.85rem;
           }
         }
       `}</style>

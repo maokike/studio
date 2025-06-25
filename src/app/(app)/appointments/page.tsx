@@ -51,7 +51,7 @@ import type { User } from "../users/page";
 import type { Doctors } from "../doctors/page";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 export interface Appointment {
   id: number;
@@ -72,7 +72,7 @@ export default function AppointmentManagementPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Pick<User, "id" | "name">[]>([]);
   const [doctors, setDoctors] = useState<
-    Pick<Doctors, "id" | "name" | "specialtyName">[]
+    Pick<Doctors, "id" | "name" | "specialtyId">[]
   >([]);
   const [specialties, setSpecialties] = useState<
     { id: string; name: string }[]
@@ -134,12 +134,13 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Medico`);
       if (!response.ok) throw new Error("Failed to fetch doctors");
       const data = await response.json();
-      // Ajusta el mapeo según la estructura que devuelve tu API de Medico
+      
       const medicos = data.map((u: any) => ({
         id: u.Id,
         name: `${u.Nombre} ${u.Apellido}`,
-        specialtyName: u.EspecialidadNombre || "",
+        specialtyId: u.EspecialidadId,
       }));
+      
       setDoctors(medicos);
     } catch (error) {
       console.error("Error fetching doctors:", error);
@@ -156,9 +157,8 @@ export default function AppointmentManagementPage() {
       const response = await fetch(`${API_BASE_URL}/Especialidad`);
       if (!response.ok) throw new Error("Failed to fetch specialties");
       const data = await response.json();
-      // Mapea a la estructura esperada por tu UI
       const specialties = data.map((s: any) => ({
-        id: s.Id,
+        id: String(s.Id),
         name: s.Nombre,
       }));
       setSpecialties(specialties);
@@ -276,14 +276,14 @@ export default function AppointmentManagementPage() {
   const filteredAppointments = useMemo(() => {
     return appointments
       .map((apt) => {
-        // Manejar diferentes estructuras de la API
         const pacienteId = apt.PacienteId || apt.pacienteId;
         const medicoId = apt.MedicoId || apt.medicoId;
-        const especialidadId = apt.EspecialidadId || apt.especialidadId;
         
         const patient = patients.find(p => p.id === pacienteId);
         const doctor = doctors.find(d => d.id === medicoId);
-        const specialty = specialties.find(s => s.id === String(especialidadId));
+        const specialty = doctor 
+          ? specialties.find(s => s.id === String(doctor.specialtyId))
+          : null;
 
         return {
           ...apt,
@@ -343,29 +343,53 @@ export default function AppointmentManagementPage() {
       
       // Información de filtros
       doc.setFontSize(10);
-      doc.text(`Médico: ${filterDoctor === "all" ? "Todos" : doctors.find(d => d.id === Number(filterDoctor))?.name || filterDoctor}`, 14, 24);
-      doc.text(`Estado: ${filterStatus === "all" ? "Todos" : filterStatus}`, 14, 30);
-      doc.text(`Fecha: ${filterDate || "Todas"}`, 14, 36);
+      const doctorName = filterDoctor === "all" 
+        ? "Todos" 
+        : doctors.find(d => d.id === Number(filterDoctor))?.name || filterDoctor;
+        
+      const statusName = filterStatus === "all" ? "Todos" : filterStatus;
+      const dateValue = filterDate || "Todas";
+      
+      doc.text(`Médico: ${doctorName}`, 14, 24);
+      doc.text(`Estado: ${statusName}`, 14, 30);
+      doc.text(`Fecha: ${dateValue}`, 14, 36);
       
       // Datos de la tabla
       const headers = [["Paciente", "Médico", "Especialidad", "Fecha", "Hora", "Estado"]];
-      const data = filteredAppointments.map(apt => [
-        apt.pacienteName || "Desconocido",
-        apt.medicoName || "Desconocido",
-        apt.especialidadName || "Desconocida",
-        new Date(apt.Fecha).toLocaleDateString(),
-        apt.Hora.substring(0, 5),
-        apt.Estado
-      ]);
       
-      // Generar tabla
-      (doc as any).autoTable({
+      const data = filteredAppointments.map(apt => {
+        const date = new Date(apt.Fecha);
+        const formattedDate = isNaN(date.getTime()) 
+          ? "Fecha inválida" 
+          : date.toLocaleDateString();
+          
+        const formattedTime = apt.Hora 
+          ? apt.Hora.substring(0, 5) 
+          : "Hora inválida";
+          
+        return [
+          apt.pacienteName || "Desconocido",
+          apt.medicoName || "Desconocido",
+          apt.especialidadName || "Desconocida",
+          formattedDate,
+          formattedTime,
+          apt.Estado || "Sin estado"
+        ];
+      });
+      
+      // Generar tabla con autotable
+      autoTable(doc, {
         head: headers,
         body: data,
         startY: 40,
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [41, 128, 185] },
-        theme: "grid"
+        headStyles: { 
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        theme: "grid",
+        margin: { top: 40 }
       });
       
       // Guardar PDF
@@ -380,7 +404,7 @@ export default function AppointmentManagementPage() {
       console.error("Error en exportación:", error);
       toast({
         title: "Error en exportación",
-        description: "Falló la generación del PDF",
+        description: `Falló la generación del PDF: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       });
     }

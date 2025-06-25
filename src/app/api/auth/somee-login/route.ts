@@ -3,20 +3,14 @@
 import { NextResponse } from 'next/server';
 import sql from 'mssql';
 
-// Configuración de la conexión a la base de datos usando variables de entorno
-// Asegúrate de que tu archivo .env.local esté en la raíz de tu proyecto 'studio'
-// y contenga:
-// DB_USER="Maaelias123__SQLLogin_1"
-// DB_PASSWORD="fdmdmns12t"
-// DB_SERVER="BD_clinica.mssql.somee.com"
-// DB_DATABASE="Clinica BD"
+
 const config = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   server: process.env.DB_SERVER,
   database: process.env.DB_DATABASE,
   options: {
-    encrypt: true, // Esto es común para conexiones a SQL Server en la nube como Somee
+    encrypt: true, 
     trustServerCertificate: true // Necesario para desarrollo si el certificado no es de una CA conocida.
                                  // En producción, si usas SSL, deberías tener un certificado de confianza.
   }
