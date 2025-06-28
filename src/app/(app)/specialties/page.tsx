@@ -36,8 +36,6 @@ import { useToast } from "@/hooks/use-toast";
 export interface Specialty {
   id: string;
   name: string;
-  description?: string;
-  doctorCount: number;
   createdAt: string;
 }
 
@@ -66,8 +64,6 @@ export default function SpecialtyManagementPage() {
       const data: Specialty[] = rawData.map((item: any) => ({
         id: item.Id?.toString() ?? "0",
         name: item.Nombre ?? "Sin nombre",
-        description: "N/A", // Placeholder: not returned from backend
-        doctorCount: 0, // Placeholder: backend doesn't provide this
         createdAt: new Date().toISOString(), // Placeholder date
       }));
 
@@ -96,28 +92,37 @@ export default function SpecialtyManagementPage() {
     setIsFormOpen(true);
   };
 
-  const handleSaveSpecialty = async (specialtyData: Omit<Specialty, "createdAt" | "doctorCount"> & { id?: string }) => {
+  // AJUSTE: Mapea el objeto para coincidir con el backend ASP.NET
+  const handleSaveSpecialty = async (specialtyData: Omit<Specialty, "createdAt"> & { id?: string }) => {
     try {
+      // Solo envía lo que el backend espera
+      const payload: any = {
+        Nombre: specialtyData.name
+      };
+      if (specialtyData.id) {
+        payload.Id = parseInt(specialtyData.id);
+      }
+
       let response;
       if (specialtyData.id) {
         response = await fetch(`${API_BASE_URL}/Especialidad/${specialtyData.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(specialtyData),
+          body: JSON.stringify(payload),
         });
         toast({
-          title: "Specialty Updated",
-          description: `${specialtyData.name} has been successfully updated.`,
+          title: "Especialidad actualizada",
+          description: `${specialtyData.name} ha sido actualizada correctamente.`,
         });
       } else {
         response = await fetch(`${API_BASE_URL}/Especialidad`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(specialtyData),
+          body: JSON.stringify(payload),
         });
         toast({
-          title: "Specialty Registered",
-          description: `${specialtyData.name} has been successfully registered.`,
+          title: "Especialidad registrada",
+          description: `${specialtyData.name} ha sido registrada correctamente.`,
         });
       }
 
@@ -139,14 +144,6 @@ export default function SpecialtyManagementPage() {
   };
 
   const handleDeleteSpecialty = (specialty: Specialty) => {
-    if (specialty.doctorCount > 0) {
-      toast({
-        variant: "destructive",
-        title: "Cannot Delete Specialty",
-        description: `${specialty.name} has ${specialty.doctorCount} doctor(s) assigned.`,
-      });
-      return;
-    }
     setSpecialtyToDelete(specialty);
     setIsDeleteDialogOpen(true);
   };
@@ -165,8 +162,8 @@ export default function SpecialtyManagementPage() {
       }
 
       toast({
-        title: "Specialty Deleted",
-        description: `${specialtyToDelete.name} has been successfully deleted.`,
+        title: "Especialidad eliminada",
+        description: `${specialtyToDelete.name} ha sido eliminada correctamente.`,
       });
       fetchSpecialties();
       setSpecialtyToDelete(null);
@@ -183,9 +180,9 @@ export default function SpecialtyManagementPage() {
 
   return (
     <>
-      <PageHeader title="Specialty Management" description="Manage all medical specialties available in the system.">
+      <PageHeader title="Gestión de Especialidades" description="Administra todas las especialidades médicas del sistema.">
         <Button onClick={handleRegisterSpecialty}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Register Specialty
+          <PlusCircle className="mr-2 h-4 w-4" /> Registrar Especialidad
         </Button>
       </PageHeader>
 
@@ -193,10 +190,9 @@ export default function SpecialtyManagementPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead className="text-center">Doctors</TableHead>
-              <TableHead>Created At</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Fecha de creación</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -204,7 +200,6 @@ export default function SpecialtyManagementPage() {
               specialties.map((spec) => (
                 <TableRow key={spec.id}>
                   <TableCell className="font-medium">{spec.name}</TableCell>
-                  <TableCell className="text-center">{spec.doctorCount}</TableCell>
                   <TableCell>{new Date(spec.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -215,16 +210,16 @@ export default function SpecialtyManagementPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => handleEditSpecialty(spec)}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit
+                          <Edit className="mr-2 h-4 w-4" /> Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleDeleteSpecialty(spec)}
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
                         >
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -233,8 +228,8 @@ export default function SpecialtyManagementPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                  No specialties found.
+                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  No hay especialidades registradas.
                 </TableCell>
               </TableRow>
             )}
@@ -252,20 +247,15 @@ export default function SpecialtyManagementPage() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the specialty: {specialtyToDelete?.name}.
-              {specialtyToDelete && specialtyToDelete.doctorCount > 0 && (
-                <p className="mt-2 font-semibold text-red-600">
-                  Warning: This specialty currently has {specialtyToDelete.doctorCount} doctor(s) assigned.
-                </p>
-              )}
+              Esta acción no se puede deshacer. Esto eliminará permanentemente la especialidad: {specialtyToDelete?.name}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteSpecialty} className="bg-destructive hover:bg-destructive/90">
-              Delete
+              Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

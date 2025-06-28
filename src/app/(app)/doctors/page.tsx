@@ -1,6 +1,5 @@
 "use client";
-import React from 'react';
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +14,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +23,7 @@ import {
   Edit,
   Trash2,
   Loader2,
-} from "lucide-react"; 
+} from "lucide-react";
 import { DoctorForm } from "./doctor-form";
 import {
   AlertDialog,
@@ -71,15 +68,9 @@ export interface Specialty {
   Nombre: string;
 }
 
-const MOCK_SPECIALTIES: Specialty[] = [
-  { Id: 1, Nombre: "Cardiología" },
-  { Id: 2, Nombre: "Pediatría" },
-  // ... otras especialidades
-];
-
 export default function DoctorManagementPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [specialties, setSpecialties] = useState<Specialty[]>(MOCK_SPECIALTIES);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -88,20 +79,38 @@ export default function DoctorManagementPage() {
   const [isSavingOrDeleting, setIsSavingOrDeleting] = useState(false);
   const { toast } = useToast();
 
+  // Fetch specialties from API
+  useEffect(() => {
+    const fetchSpecialties = async () => {
+      try {
+        const response = await fetch("https://localhost:44314/api/Especialidad");
+        if (!response.ok) throw new Error("Error al cargar especialidades");
+        const data = await response.json();
+        setSpecialties(data);
+      } catch (error) {
+        setSpecialties([]);
+      }
+    };
+    fetchSpecialties();
+  }, []);
+
+  // Fetch doctors from API
   const fetchDoctors = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch("https://localhost:44314/api/Usuario");
       if (!response.ok) throw new Error("Error al cargar médicos");
-      
+
       const data: any[] = await response.json();
-      
+
       const processedDoctors: Doctor[] = data
         .filter((u) => u.Rol === "Medico")
         .map((user) => ({
           ...user,
           Estatus: Boolean(user.Estatus),
-          SpecialtyName: MOCK_SPECIALTIES.find(s => s.Id === user.EspecialidadId)?.Nombre || "N/A",
+          SpecialtyName:
+            specialties.find((s) => s.Id === user.EspecialidadId)?.Nombre ||
+            "N/A",
         }));
 
       setDoctors(processedDoctors);
@@ -114,11 +123,13 @@ export default function DoctorManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, specialties]);
 
   useEffect(() => {
-    fetchDoctors();
-  }, [fetchDoctors]);
+    if (specialties.length > 0) {
+      fetchDoctors();
+    }
+  }, [fetchDoctors, specialties]);
 
   const handleRegisterDoctor = () => {
     setSelectedDoctor(null);
@@ -133,41 +144,39 @@ export default function DoctorManagementPage() {
   const handleSaveDoctor = async (formData: DoctorFormData) => {
     setIsSavingOrDeleting(true);
     const isEditing = !!formData.Id;
-  
+
     try {
-      // Prepara el payload con todos los campos necesarios
       const payload = {
         Id: formData.Id,
         Cedula: formData.Cedula,
         Nombre: formData.Nombre,
         Apellido: formData.Apellido,
         Email: formData.Email,
-        // Envía cadena vacía si no hay contraseña en edición
         Contrasena: isEditing && !formData.Contrasena ? "" : formData.Contrasena || "",
         Rol: "Medico",
         EspecialidadId: formData.EspecialidadId || 0,
         Estatus: formData.Estatus ? 1 : 0,
       };
-  
-      const endpoint = `https://localhost:44314/api/Usuario${isEditing ? `/${formData.Id}` : ''}`;
+
+      const endpoint = `https://localhost:44314/api/Usuario${isEditing ? `/${formData.Id}` : ""}`;
       const method = isEditing ? "PUT" : "POST";
-  
+
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-  
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Error al guardar médico");
       }
-  
+
       toast({
         title: `Médico ${isEditing ? "actualizado" : "registrado"}`,
         description: `El médico ha sido ${isEditing ? "actualizado" : "registrado"} correctamente.`,
       });
-      
+
       setIsFormOpen(false);
       fetchDoctors();
     } catch (error: any) {
@@ -206,7 +215,7 @@ export default function DoctorManagementPage() {
         title: "Médico eliminado",
         description: "El médico ha sido eliminado correctamente.",
       });
-      
+
       setIsDeleteDialogOpen(false);
       fetchDoctors();
     } catch (error: any) {

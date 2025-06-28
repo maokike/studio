@@ -1,4 +1,3 @@
-// studio/src/app/login/page.tsx
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -15,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AppLogoText, Logo } from "@/components/icons";
+import { Logo } from "@/components/icons";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
@@ -33,7 +32,6 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Llamada a tu API Route para el login que se conecta a Somee
       const response = await fetch("/api/auth/somee-login", {
         method: "POST",
         headers: {
@@ -50,11 +48,14 @@ export default function LoginPage() {
           description: data.message || "¡Bienvenido de nuevo!",
         });
 
-        // Guarda el ID y el rol del usuario en localStorage
+        // Guardar en localStorage
         localStorage.setItem("userId", data.user.id);
         localStorage.setItem("userRole", data.user.rol);
 
-        // Redirección basada en el rol
+        // Guardar todo el usuario en sessionStorage
+        sessionStorage.setItem("userData", JSON.stringify(data.user));
+
+        // Redireccionar según rol
         switch (data.user.rol) {
           case "Admin":
             router.push("/dashboard");
@@ -65,15 +66,20 @@ export default function LoginPage() {
           case "Paciente":
             router.push("/paciente");
             break;
-  
+          default:
+            toast({
+              variant: "destructive",
+              title: "Rol no reconocido",
+              description: `El rol '${data.user.rol}' no tiene una ruta asignada.`,
+            });
+            break;
         }
       } else {
         toast({
           variant: "destructive",
           title: "Inicio de Sesión Fallido",
           description:
-            data.message ||
-            "Correo o contraseña inválidos. Inténtalo de nuevo.",
+            data.message || "Correo o contraseña inválidos. Inténtalo de nuevo.",
         });
       }
     } catch (error) {
@@ -95,7 +101,6 @@ export default function LoginPage() {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
             <Logo className="h-24 w-24 text-primary" />
-            {/* <AppLogoText /> */}
           </div>
           <CardTitle className="text-2xl font-headline">Login</CardTitle>
           <CardDescription>
@@ -126,7 +131,7 @@ export default function LoginPage() {
                     className="p-0 h-auto text-sm text-primary hover:underline"
                     disabled={isLoading}
                   >
-                    Forgot password?
+                    ¿Olvidaste tu contraseña?
                   </Button>
                 </Link>
               </div>
@@ -148,11 +153,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   <span className="sr-only">
                     {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                   </span>
